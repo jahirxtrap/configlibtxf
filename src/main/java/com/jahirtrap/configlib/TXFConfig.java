@@ -309,14 +309,13 @@ public abstract class TXFConfig {
             for (EntryInfo info : entries) {
                 if (info.id.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
                     Text name = Objects.requireNonNullElseGet(info.name, () -> Text.translatable(translationPrefix + info.field.getName()));
-                    IconButtonWidget resetButton = IconButtonWidget.builder(Text.literal(""), new Identifier("configlibtxf", "textures/gui/sprites/icon/reset.png"), (button -> {
+                    TextIconButtonWidget resetButton = TextIconButtonWidget.builder(Text.translatable("controls.reset"), (button -> {
                         info.value = info.defaultValue;
                         info.tempValue = info.defaultValue.toString();
                         info.index = 0;
                         list.clear();
                         fillList();
-                    })).textureSize(12, 12).iconSize(12, 12).xyOffset(0, 4).build();
-                    resetButton.setWidth(40);
+                    }), true).texture(new Identifier("configlibtxf","icon/reset"), 12, 12).dimension(40, 20).build();
                     resetButton.setPosition(width - 205, 0);
 
                     if (info.widget instanceof Map.Entry) {
@@ -378,11 +377,10 @@ public abstract class TXFConfig {
         }
         @Override
         public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-            this.renderBackground(context);
+            super.render(context,mouseX,mouseY,delta);
             this.list.render(context, mouseX, mouseY, delta);
 
             if (tabs.size() < 2) context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 15, 0xFFFFFF);
-            super.render(context,mouseX,mouseY,delta);
         }
     }
     @Environment(EnvType.CLIENT)
