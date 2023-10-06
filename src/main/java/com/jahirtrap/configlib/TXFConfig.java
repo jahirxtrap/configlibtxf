@@ -9,7 +9,7 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawableHelper;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
@@ -19,7 +19,6 @@ import net.minecraft.client.gui.tab.TabManager;
 import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.*;
 import net.minecraft.client.resource.language.I18n;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
@@ -378,11 +377,11 @@ public abstract class TXFConfig {
             }
         }
         @Override
-        public void render(MatrixStack context, int mouseX, int mouseY, float delta) {
+        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
             this.renderBackground(context);
             this.list.render(context, mouseX, mouseY, delta);
 
-            if (tabs.size() < 2) drawCenteredTextWithShadow(context, textRenderer, title, width / 2, 15, 0xFFFFFF);
+            if (tabs.size() < 2) context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 15, 0xFFFFFF);
             super.render(context,mouseX,mouseY,delta);
         }
     }
@@ -422,15 +421,15 @@ public abstract class TXFConfig {
             this.info = info;
             children.addAll(buttons);
         }
-        public void render(MatrixStack context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             buttons.forEach(b -> { b.setY(y); b.render(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
-                if (info.centered) DrawableHelper.drawTextWithShadow(context, textRenderer, text, MinecraftClient.getInstance().getWindow().getScaledWidth() / 2 - (textRenderer.getWidth(text) / 2), y + 5, 0xFFFFFF);
+                if (info.centered) context.drawTextWithShadow(textRenderer, text, MinecraftClient.getInstance().getWindow().getScaledWidth() / 2 - (textRenderer.getWidth(text) / 2), y + 5, 0xFFFFFF);
                 else {
                     int wrappedY = y;
                     for(Iterator<OrderedText> iterator = textRenderer.wrapLines(text, (buttons.size() > 1 ? buttons.get(1).getX()-24 : MinecraftClient.getInstance().getWindow().getScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
                         OrderedText orderedText = iterator.next();
-                        DrawableHelper.drawTextWithShadow(context, textRenderer, orderedText, 12, wrappedY + 5, 0xFFFFFF);
+                        context.drawTextWithShadow(textRenderer, orderedText, 12, wrappedY + 5, 0xFFFFFF);
                     }
                 }
             }
