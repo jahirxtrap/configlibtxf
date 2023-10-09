@@ -5,25 +5,22 @@ import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawableHelper;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ScreenTexts;
-import net.minecraft.client.gui.widget.*;
-import net.minecraft.client.resource.language.I18n;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.LiteralText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TranslatableText;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.gui.components.*;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.*;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.awt.Color;
 import java.lang.annotation.ElementType;
@@ -55,15 +52,15 @@ public abstract class TXFConfig {
         int width;
         int max;
         boolean centered;
-        Text error;
+        Component error;
         Object defaultValue;
         Object value;
         String tempValue;
         boolean inLimits = true;
         String id;
-        Text name;
+        Component name;
         int index;
-        ClickableWidget colorButton;
+        AbstractWidget colorButton;
     }
 
     public static final Map<String, Class<? extends TXFConfig>> configClass = new HashMap<>();
@@ -72,12 +69,12 @@ public abstract class TXFConfig {
     private static final Gson gson = new GsonBuilder().excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE).addSerializationExclusionStrategy(new HiddenAnnotationExclusionStrategy()).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
-        path = FabricLoader.getInstance().getConfigDir().resolve(modid + ".json");
+        path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json");
         configClass.put(modid, config);
 
         for (Field field : config.getFields()) {
             EntryInfo info = new EntryInfo();
-            if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT))
+            if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.dist.isClient()))
                 initClient(modid, field, info);
             if (field.isAnnotationPresent(Comment.class)) info.centered = field.getAnnotation(Comment.class).centered();
             if (field.isAnnotationPresent(Entry.class))
@@ -96,7 +93,7 @@ public abstract class TXFConfig {
                 } catch (IllegalAccessException ignored) {}
         }
     }
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     private static void initClient(String modid, Field field, EntryInfo info) {
         Class<?> type = field.getType();
         Entry e = field.getAnnotation(Entry.class);
@@ -105,21 +102,21 @@ public abstract class TXFConfig {
         info.id = modid;
 
         if (e != null) {
-            if (!e.name().equals("")) info.name = new TranslatableText(e.name());
+            if (!e.name().equals("")) info.name = new TranslatableComponent(e.name());
             if (type == int.class) textField(info, Integer::parseInt, INTEGER_ONLY, (int) e.min(), (int) e.max(), true);
             else if (type == float.class) textField(info, Float::parseFloat, DECIMAL_ONLY, (float) e.min(), (float) e.max(), false);
             else if (type == double.class) textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
             else if (type == String.class || type == List.class) textField(info, String::length, null, Math.min(e.min(), 0), Math.max(e.max(), 1), true);
             else if (type == boolean.class) {
-                Function<Object, Text> func = value -> new TranslatableText((Boolean) value ? "gui.yes" : "gui.no").formatted((Boolean) value ? Formatting.GREEN : Formatting.RED);
-                info.widget = new AbstractMap.SimpleEntry<ButtonWidget.PressAction, Function<Object, Text>>(button -> {
+                Function<Object, Component> func = value -> new TranslatableComponent((Boolean) value ? "gui.yes" : "gui.no").withStyle((Boolean) value ? ChatFormatting.GREEN : ChatFormatting.RED);
+                info.widget = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     info.value = !(Boolean) info.value;
                     button.setMessage(func.apply(info.value));
                 }, func);
             } else if (type.isEnum()) {
                 List<?> values = Arrays.asList(field.getType().getEnumConstants());
-                Function<Object, Text> func = value -> new TranslatableText(modid + ".config." + "enum." + type.getSimpleName() + "." + info.value.toString());
-                info.widget = new AbstractMap.SimpleEntry<ButtonWidget.PressAction, Function<Object, Text>>(button -> {
+                Function<Object, Component> func = value -> new TranslatableComponent(modid + ".config." + "enum." + type.getSimpleName() + "." + info.value.toString());
+                info.widget = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     int index = values.indexOf(info.value) + 1;
                     info.value = values.get(index >= values.size() ? 0 : index);
                     button.setMessage(func.apply(info.value));
@@ -131,7 +128,7 @@ public abstract class TXFConfig {
 
     private static void textField(EntryInfo info, Function<String,Number> f, Pattern pattern, double min, double max, boolean cast) {
         boolean isNumber = pattern != null;
-        info.widget = (BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) (t, b) -> s -> {
+        info.widget = (BiFunction<EditBox, Button, Predicate<String>>) (t, b) -> s -> {
             s = s.trim();
             if (!(s.isEmpty() || !isNumber || pattern.matcher(s).matches())) return false;
 
@@ -141,13 +138,13 @@ public abstract class TXFConfig {
             if (!(isNumber && s.isEmpty()) && !s.equals("-") && !s.equals(".")) {
                 try { value = f.apply(s); } catch(NumberFormatException e){ return false; }
                 inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
-                info.error = inLimits? null : new LiteralText(value.doubleValue() < min ?
+                info.error = inLimits? null : new TextComponent(value.doubleValue() < min ?
                         "§cMinimum " + (isNumber? "value" : "length") + (cast? " is " + (int)min : " is " + min) :
                         "§cMaximum " + (isNumber? "value" : "length") + (cast? " is " + (int)max : " is " + max));
             }
 
             info.tempValue = s;
-            t.setEditableColor(inLimits? 0xFFFFFFFF : 0xFFFF7777);
+            t.setTextColor(inLimits? 0xFFFFFFFF : 0xFFFF7777);
             info.inLimits = inLimits;
             b.active = entries.stream().allMatch(e -> e.inLimits);
 
@@ -162,7 +159,7 @@ public abstract class TXFConfig {
                 if (!s.contains("#")) s = '#' + s;
                 if (!HEXADECIMAL_ONLY.matcher(s).matches()) return false;
                 try {
-                    info.colorButton.setMessage(new LiteralText("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
+                    info.colorButton.setMessage(new TextComponent("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
                 } catch (Exception ignored) {}
             }
             return true;
@@ -176,7 +173,7 @@ public abstract class TXFConfig {
     }
 
     public void writeChanges(String modid) {
-        path = FabricLoader.getInstance().getConfigDir().resolve(modid + ".json");
+        path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json");
         try {
             if (!Files.exists(path)) Files.createFile(path);
             Files.write(path, gson.toJson(getClass(modid)).getBytes());
@@ -184,14 +181,14 @@ public abstract class TXFConfig {
             e.printStackTrace();
         }
     }
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public static Screen getScreen(Screen parent, String modid) {
         return new MidnightConfigScreen(parent, modid);
     }
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public static class MidnightConfigScreen extends Screen {
         protected MidnightConfigScreen(Screen parent, String modid) {
-            super(new TranslatableText(modid + ".config." + "title"));
+            super(new TranslatableComponent(modid + ".config." + "title"));
             this.parent = parent;
             this.modid = modid;
             this.translationPrefix = modid + ".config.";
@@ -214,7 +211,7 @@ public abstract class TXFConfig {
         public void updateResetButtons() {
             if (this.list != null) {
                 for (ButtonEntry entry : this.list.children()) {
-                    if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof ButtonWidget button) {
+                    if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof Button button) {
                         button.active = !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
                     }
                 }
@@ -237,12 +234,12 @@ public abstract class TXFConfig {
             super.init();
             if (!reload) loadValues();
 
-            this.addDrawableChild(new ButtonWidget(this.width / 2 - 154, this.height - 28, 150, 20, ScreenTexts.CANCEL, button -> {
+            this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> {
                 loadValues();
-                Objects.requireNonNull(client).setScreen(parent);
+                Objects.requireNonNull(minecraft).setScreen(parent);
             }));
 
-            ButtonWidget done = this.addDrawableChild(new ButtonWidget(this.width / 2 + 4, this.height - 28, 150, 20, ScreenTexts.DONE, (button) -> {
+            Button done = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_DONE, (button) -> {
                 for (EntryInfo info : entries)
                     if (info.id.equals(modid)) {
                         try {
@@ -250,62 +247,62 @@ public abstract class TXFConfig {
                         } catch (IllegalAccessException ignored) {}
                     }
                 write(modid);
-                Objects.requireNonNull(client).setScreen(parent);
+                Objects.requireNonNull(minecraft).setScreen(parent);
             }));
 
-            this.list = new MidnightConfigListWidget(this.client, this.width, this.height, 32, this.height - 32, 25);
-            if (this.client != null && this.client.world != null) this.list.setRenderBackground(false);
-            this.addSelectableChild(this.list);
+            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height, 32, this.height - 32, 25);
+            if (this.minecraft != null && this.minecraft.level != null) this.list.setRenderBackground(false);
+            this.addWidget(this.list);
             for (EntryInfo info : entries) {
                 if (info.id.equals(modid)) {
-                    Text name = Objects.requireNonNullElseGet(info.name, () -> new TranslatableText(translationPrefix + info.field.getName()));
-                    ResetButtonWidget resetButton = new ResetButtonWidget(width - 205, 0, 40, 20, new LiteralText(""), (button -> {
+                    Component name = Objects.requireNonNullElseGet(info.name, () -> new TranslatableComponent(translationPrefix + info.field.getName()));
+                    ResetButtonWidget resetButton = new ResetButtonWidget(width - 205, 0, 40, 20, new TextComponent(""), (button -> {
                         info.value = info.defaultValue;
                         info.tempValue = info.defaultValue.toString();
                         info.index = 0;
                         double scrollAmount = list.getScrollAmount();
                         this.reload = true;
-                        Objects.requireNonNull(client).setScreen(this);
+                        Objects.requireNonNull(minecraft).setScreen(this);
                         list.setScrollAmount(scrollAmount);
                     }));
 
                     if (info.widget instanceof Map.Entry) {
-                        Map.Entry<ButtonWidget.PressAction, Function<Object, Text>> widget = (Map.Entry<ButtonWidget.PressAction, Function<Object, Text>>) info.widget;
-                        if (info.field.getType().isEnum()) widget.setValue(value -> new TranslatableText(translationPrefix + "enum." + info.field.getType().getSimpleName() + "." + info.value.toString()));
-                        this.list.addButton(List.of(new ButtonWidget(width - 160, 0,150, 20, widget.getValue().apply(info.value), widget.getKey()),resetButton), name, info);
+                        Map.Entry<Button.OnPress, Function<Object, Component>> widget = (Map.Entry<Button.OnPress, Function<Object, Component>>) info.widget;
+                        if (info.field.getType().isEnum()) widget.setValue(value -> new TranslatableComponent(translationPrefix + "enum." + info.field.getType().getSimpleName() + "." + info.value.toString()));
+                        this.list.addButton(List.of(new Button(width - 160, 0,150, 20, widget.getValue().apply(info.value), widget.getKey()),resetButton), name, info);
                     } else if (info.field.getType() == List.class) {
                         if (!reload) info.index = 0;
-                        TextFieldWidget widget = new TextFieldWidget(textRenderer, width - 160, 0, 150, 20, null);
+                        EditBox widget = new EditBox(font, width - 160, 0, 150, 20, null);
                         widget.setMaxLength(info.width);
-                        if (info.index < ((List<String>)info.value).size()) widget.setText((String.valueOf(((List<String>)info.value).get(info.index))));
-                        Predicate<String> processor = ((BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) info.widget).apply(widget, done);
-                        widget.setTextPredicate(processor);
+                        if (info.index < ((List<String>)info.value).size()) widget.setValue((String.valueOf(((List<String>)info.value).get(info.index))));
+                        Predicate<String> processor = ((BiFunction<EditBox, Button, Predicate<String>>) info.widget).apply(widget, done);
+                        widget.setFilter(processor);
                         resetButton.setWidth(20);
-                        ButtonWidget cycleButton = new ButtonWidget(width - 185, 0, 20, 20, new LiteralText(String.valueOf(info.index)).formatted(Formatting.GOLD), (button -> {
+                        Button cycleButton = new Button(width - 185, 0, 20, 20, new TextComponent(String.valueOf(info.index)).withStyle(ChatFormatting.GOLD), (button -> {
                             ((List<String>)info.value).remove("");
                             double scrollAmount = list.getScrollAmount();
                             this.reload = true;
                             info.index = info.index + 1;
                             if (info.index > ((List<String>)info.value).size()) info.index = 0;
-                            Objects.requireNonNull(client).setScreen(this);
+                            Objects.requireNonNull(minecraft).setScreen(this);
                             list.setScrollAmount(scrollAmount);
                         }));
                         this.list.addButton(List.of(widget, resetButton, cycleButton), name, info);
                     } else if (info.widget != null) {
-                        ClickableWidget widget;
+                        AbstractWidget widget;
                         Entry e = info.field.getAnnotation(Entry.class);
-                        if (e.isSlider()) widget = new MidnightSliderWidget(width - 160, 0, 150, 20, Text.of(info.tempValue), (Double.parseDouble(info.tempValue)-e.min()) / (e.max() - e.min()), info);
-                        else widget = new TextFieldWidget(textRenderer, width - 160, 0, 150, 20, null, Text.of(info.tempValue));
-                        if (widget instanceof TextFieldWidget textField) {
+                        if (e.isSlider()) widget = new MidnightSliderWidget(width - 160, 0, 150, 20, Component.nullToEmpty(info.tempValue), (Double.parseDouble(info.tempValue)-e.min()) / (e.max() - e.min()), info);
+                        else widget = new EditBox(font, width - 160, 0, 150, 20, null, Component.nullToEmpty(info.tempValue));
+                        if (widget instanceof EditBox textField) {
                             textField.setMaxLength(info.width);
-                            textField.setText(info.tempValue);
-                            Predicate<String> processor = ((BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) info.widget).apply(textField, done);
-                            textField.setTextPredicate(processor);
+                            textField.setValue(info.tempValue);
+                            Predicate<String> processor = ((BiFunction<EditBox, Button, Predicate<String>>) info.widget).apply(textField, done);
+                            textField.setFilter(processor);
                         }
                         if (e.isColor()) {
                             resetButton.setWidth(20);
-                            ButtonWidget colorButton = new ButtonWidget(width - 185, 0, 20, 20, new LiteralText("⬛"), (button -> {}));
-                            try {colorButton.setMessage(new LiteralText("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));} catch (Exception ignored) {}
+                            Button colorButton = new Button(width - 185, 0, 20, 20, new TextComponent("⬛"), (button -> {}));
+                            try {colorButton.setMessage(new TextComponent("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));} catch (Exception ignored) {}
                             info.colorButton = colorButton;
                             colorButton.active = false;
                             this.list.addButton(List.of(widget, resetButton, colorButton), name, info);
@@ -319,28 +316,28 @@ public abstract class TXFConfig {
             }
         }
         @Override
-        public void render(MatrixStack context, int mouseX, int mouseY, float delta) {
+        public void render(PoseStack context, int mouseX, int mouseY, float delta) {
             this.renderBackground(context);
             this.list.render(context, mouseX, mouseY, delta);
-            drawCenteredText(context, textRenderer, title, width / 2, 15, 0xFFFFFF);
+            drawCenteredString(context, font, title, width / 2, 15, 0xFFFFFF);
 
             if (list.getHoveredButton(mouseX,mouseY).isPresent() && list.getHoveredButton(mouseX, mouseY).get() instanceof ResetButtonWidget)
-                renderTooltip(context, new TranslatableText("controls.reset").formatted(Formatting.RED), mouseX, mouseY);
+                renderTooltip(context, new TranslatableComponent("controls.reset").withStyle(ChatFormatting.RED), mouseX, mouseY);
 
             for (EntryInfo info : entries) {
                 if (info.id.equals(modid)) {
                     if (list.getHoveredButton(mouseX,mouseY).isPresent()) {
-                        ClickableWidget buttonWidget = list.getHoveredButton(mouseX,mouseY).get();
-                        Text text = ButtonEntry.buttonsWithText.get(buttonWidget);
-                        Text name = new TranslatableText(this.translationPrefix + info.field.getName());
+                        AbstractWidget buttonWidget = list.getHoveredButton(mouseX,mouseY).get();
+                        Component text = ButtonEntry.buttonsWithText.get(buttonWidget);
+                        Component name = new TranslatableComponent(this.translationPrefix + info.field.getName());
                         String key = translationPrefix + info.field.getName() + ".tooltip";
 
                         if (info.error != null && text.equals(name)) renderTooltip(context, info.error, mouseX, mouseY);
-                        else if (I18n.hasTranslation(key) && text.equals(name)) {
-                            List<Text> list = new ArrayList<>();
-                            for (String str : I18n.translate(key).split("\n"))
-                                list.add(new LiteralText(str));
-                            renderTooltip(context, list, mouseX, mouseY);
+                        else if (I18n.exists(key) && text.equals(name)) {
+                            List<Component> list = new ArrayList<>();
+                            for (String str : I18n.get(key).split("\n"))
+                                list.add(new TextComponent(str));
+                            renderTooltip(context, list, null, mouseX, mouseY);
                         }
                     }
                 }
@@ -348,24 +345,24 @@ public abstract class TXFConfig {
             super.render(context,mouseX,mouseY,delta);
         }
     }
-    @Environment(EnvType.CLIENT)
-    public static class MidnightConfigListWidget extends ElementListWidget<ButtonEntry> {
-        TextRenderer textRenderer;
+    @OnlyIn(Dist.CLIENT)
+    public static class MidnightConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
+        Font textRenderer;
 
-        public MidnightConfigListWidget(MinecraftClient minecraftClient, int i, int j, int k, int l, int m) {
+        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int l, int m) {
             super(minecraftClient, i, j, k, l, m);
             this.centerListVertically = false;
-            textRenderer = minecraftClient.textRenderer;
+            textRenderer = minecraftClient.font;
         }
         @Override
-        public int getScrollbarPositionX() { return this.width -7; }
+        public int getScrollbarPosition() { return this.width -7; }
 
-        public void addButton(List<ClickableWidget> buttons, Text text, EntryInfo info) {
+        public void addButton(List<AbstractWidget> buttons, Component text, EntryInfo info) {
             this.addEntry(new ButtonEntry(buttons, text, info));
         }
         @Override
         public int getRowWidth() { return 10000; }
-        public Optional<ClickableWidget> getHoveredButton(double mouseX, double mouseY) {
+        public Optional<AbstractWidget> getHoveredButton(double mouseX, double mouseY) {
             for (ButtonEntry buttonEntry : this.children()) {
                 for (int i = 0; i <= 1; i++) {
                     if (!buttonEntry.buttons.isEmpty() && buttonEntry.buttons.get(i).isMouseOver(mouseX, mouseY))
@@ -375,34 +372,34 @@ public abstract class TXFConfig {
             return Optional.empty();
         }
     }
-    public static class ButtonEntry extends ElementListWidget.Entry<ButtonEntry> {
-        private static final TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
-        public final List<ClickableWidget> buttons;
-        private final Text text;
+    public static class ButtonEntry extends ContainerObjectSelectionList.Entry<ButtonEntry> {
+        private static final Font textRenderer = Minecraft.getInstance().font;
+        public final List<AbstractWidget> buttons;
+        private final Component text;
         public final EntryInfo info;
-        private final List<ClickableWidget> children = new ArrayList<>();
-        public static final Map<ClickableWidget, Text> buttonsWithText = new HashMap<>();
+        private final List<AbstractWidget> children = new ArrayList<>();
+        public static final Map<AbstractWidget, Component> buttonsWithText = new HashMap<>();
 
-        private ButtonEntry(List<ClickableWidget> buttons, Text text, EntryInfo info) {
+        private ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
             if (!buttons.isEmpty()) buttonsWithText.put(buttons.get(0),text);
             this.buttons = buttons;
             this.text = text;
             this.info = info;
             children.addAll(buttons);
         }
-        public void render(MatrixStack context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(PoseStack context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             buttons.forEach(b -> { b.y = y; b.render(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
-                if (info.centered) textRenderer.drawWithShadow(context, text, MinecraftClient.getInstance().getWindow().getScaledWidth() / 2f - (textRenderer.getWidth(text) / 2f), y + 5, 0xFFFFFF);
-                else DrawableHelper.drawTextWithShadow(context, textRenderer, text, 12, y + 5, 0xFFFFFF);
+                if (info.centered) textRenderer.drawShadow(context, text, Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2f - (textRenderer.width(text) / 2f), y + 5, 0xFFFFFF);
+                else GuiComponent.drawString(context, textRenderer, text, 12, y + 5, 0xFFFFFF);
             }
         }
-        public List<? extends Element> children() {return children;}
-        public List<? extends Selectable> selectableChildren() {return children;}
+        public List<? extends GuiEventListener> children() {return children;}
+        public List<? extends NarratableEntry> narratables() {return children;}
     }
-    public static class MidnightSliderWidget extends SliderWidget {
+    public static class MidnightSliderWidget extends AbstractSliderButton {
         private final EntryInfo info; private final Entry e;
-        public MidnightSliderWidget(int x, int y, int width, int height, Text text, double value, EntryInfo info) {
+        public MidnightSliderWidget(int x, int y, int width, int height, Component text, double value, EntryInfo info) {
             super(x, y, width, height, text, value);
             this.e = info.field.getAnnotation(Entry.class);
             this.info = info;
@@ -410,7 +407,7 @@ public abstract class TXFConfig {
 
         @Override
         protected void updateMessage() {
-            this.setMessage(Text.of(info.tempValue));
+            this.setMessage(Component.nullToEmpty(info.tempValue));
         }
 
         @Override
@@ -444,19 +441,19 @@ public abstract class TXFConfig {
         }
     }
 
-    public static class ResetButtonWidget extends ButtonWidget {
-        private final Identifier iconTexture = new Identifier("configlibtxf", "textures/gui/sprites/icon/reset.png");
+    public static class ResetButtonWidget extends Button {
+        private final ResourceLocation iconTexture = new ResourceLocation("configlibtxf", "textures/gui/sprites/icon/reset.png");
 
-        public ResetButtonWidget(int x, int y, int width, int height, Text message, PressAction onPress) {
+        public ResetButtonWidget(int x, int y, int width, int height, Component message, OnPress onPress) {
             super(x, y, width, height, message, onPress);
         }
 
         @Override
-        public void renderButton(MatrixStack context, int mouseX, int mouseY, float delta) {
+        public void renderButton(PoseStack context, int mouseX, int mouseY, float delta) {
             super.renderButton(context, mouseX, mouseY, delta);
             RenderSystem.setShaderTexture(0, iconTexture);
             RenderSystem.enableDepthTest();
-            drawTexture(context, x + ((width - 12) / 2), y + ((height - 12) / 2), 0, 0, 12, 12, 12, 12);
+            blit(context, x + ((width - 12) / 2), y + ((height - 12) / 2), 0, 0, 12, 12, 12, 12);
         }
     }
 }
