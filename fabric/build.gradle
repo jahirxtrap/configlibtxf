@@ -1,0 +1,93 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'maven-publish'
+    id 'fabric-loom'
+}
+
+version = "${version}-fabric"
+
+base {
+    archivesName = mod_id
+}
+
+repositories {
+    maven {
+        name "modrinth"
+        url "https://api.modrinth.com/maven"
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
+    implementation project(":common")
+
+    modImplementation "maven.modrinth:modmenu:${modmenu_version}"
+}
+
+loom {
+    if (project(":common").file("src/main/resources/${mod_id}.accesswidener").exists()) {
+        accessWidenerPath.set(project(":common").file("src/main/resources/${mod_id}.accesswidener"))
+    }
+    mixin {
+        defaultRefmapName.set("${mod_id}.refmap.json")
+    }
+    runs {
+        client {
+            client()
+            setConfigName("Fabric Client")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+        server {
+            server()
+            setConfigName("Fabric Server")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    source(project(":common").sourceSets.main.allSource)
+}
+tasks.withType(Javadoc).configureEach {
+    source(project(":common").sourceSets.main.allJava)
+}
+tasks.named("sourcesJar", Jar) {
+    from(project(":common").sourceSets.main.allSource)
+}
+
+def resourceTargets = ['fabric.mod.json']
+def replaceProperties = [
+        mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: version,
+        mod_author: mod_author, mod_description: mod_description,
+        mod_url: mod_url, side: fabric_side,
+]
+
+processResources {
+    inputs.properties replaceProperties
+    replaceProperties.put 'project', project
+
+    filesMatching(resourceTargets) {
+        expand replaceProperties
+    }
+    from project(":common").sourceSets.main.resources
+}
+
+jar.finalizedBy('remapJar')
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId project.group
+            artifactId project.archivesBaseName
+            version project.version
+            from components.java
+        }
+    }
+}
