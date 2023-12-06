@@ -249,8 +249,8 @@ public abstract class TXFConfig {
                 for (ButtonEntry entry : this.list.children()) {
                     if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof Button button) {
                         button.active = !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
-                        if (button.active) button.setTooltip(Tooltip.create(Component.translatable("controls.reset").withStyle(ChatFormatting.RED)));
-                        else button.setTooltip(Tooltip.create(Component.empty()));
+                        // if (button.active) button.setTooltip(Tooltip.create(Component.translatable("controls.reset").withStyle(ChatFormatting.RED)));
+                        // else button.setTooltip(Tooltip.create(Component.empty()));
                     }
                 }
             }
