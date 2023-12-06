@@ -7,20 +7,19 @@ import com.google.gson.GsonBuilder;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.tab.*;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.*;
-import net.minecraft.client.resource.language.I18n;
-import net.minecraft.screen.ScreenTexts;
-import net.minecraft.text.*;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.*;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.components.tabs.*;
+import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.*;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 
 import java.awt.Color;
 import java.lang.annotation.ElementType;
@@ -51,15 +50,15 @@ public abstract class TXFConfig {
         Object widget;
         int width;
         boolean centered;
-        Text error;
+        Component error;
         Object defaultValue;
         Object value;
         String tempValue;
         boolean inLimits = true;
         String id;
-        Text name;
+        Component name;
         int index;
-        ClickableWidget colorButton;
+        AbstractWidget colorButton;
         Tab tab;
     }
 
@@ -102,21 +101,21 @@ public abstract class TXFConfig {
         info.id = modid;
 
         if (e != null) {
-            if (!e.name().equals("")) info.name = Text.translatable(e.name());
+            if (!e.name().equals("")) info.name = Component.translatable(e.name());
             if (type == int.class) textField(info, Integer::parseInt, INTEGER_ONLY, (int) e.min(), (int) e.max(), true);
             else if (type == float.class) textField(info, Float::parseFloat, DECIMAL_ONLY, (float) e.min(), (float) e.max(), false);
             else if (type == double.class) textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
             else if (type == String.class || type == List.class) textField(info, String::length, null, Math.min(e.min(), 0), Math.max(e.max(), 1), true);
             else if (type == boolean.class) {
-                Function<Object, Text> func = value -> Text.translatable((Boolean) value ? "gui.yes" : "gui.no").formatted((Boolean) value ? Formatting.GREEN : Formatting.RED);
-                info.widget = new AbstractMap.SimpleEntry<ButtonWidget.PressAction, Function<Object, Text>>(button -> {
+                Function<Object, Component> func = value -> Component.translatable((Boolean) value ? "gui.yes" : "gui.no").withStyle((Boolean) value ? ChatFormatting.GREEN : ChatFormatting.RED);
+                info.widget = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     info.value = !(Boolean) info.value;
                     button.setMessage(func.apply(info.value));
                 }, func);
             } else if (type.isEnum()) {
                 List<?> values = Arrays.asList(field.getType().getEnumConstants());
-                Function<Object, Text> func = value -> Text.translatable(modid + ".config." + "enum." + type.getSimpleName() + "." + info.value.toString());
-                info.widget = new AbstractMap.SimpleEntry<ButtonWidget.PressAction, Function<Object, Text>>(button -> {
+                Function<Object, Component> func = value -> Component.translatable(modid + ".config." + "enum." + type.getSimpleName() + "." + info.value.toString());
+                info.widget = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     int index = values.indexOf(info.value) + 1;
                     info.value = values.get(index >= values.size() ? 0 : index);
                     button.setMessage(func.apply(info.value));
@@ -126,12 +125,12 @@ public abstract class TXFConfig {
         entries.add(info);
     }
     public static Tooltip getTooltip(EntryInfo info) {
-        return Tooltip.of(info.error != null ? info.error : I18n.hasTranslation(info.id + ".config."+info.field.getName()+".tooltip") ? Text.translatable(info.id + ".config."+info.field.getName()+".tooltip") : Text.empty());
+        return Tooltip.create(info.error != null ? info.error : I18n.exists(info.id + ".config."+info.field.getName()+".tooltip") ? Component.translatable(info.id + ".config."+info.field.getName()+".tooltip") : Component.empty());
     }
 
     private static void textField(EntryInfo info, Function<String,Number> f, Pattern pattern, double min, double max, boolean cast) {
         boolean isNumber = pattern != null;
-        info.widget = (BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) (t, b) -> s -> {
+        info.widget = (BiFunction<EditBox, Button, Predicate<String>>) (t, b) -> s -> {
             s = s.trim();
             if (!(s.isEmpty() || !isNumber || pattern.matcher(s).matches())) return false;
 
@@ -141,14 +140,14 @@ public abstract class TXFConfig {
             if (!(isNumber && s.isEmpty()) && !s.equals("-") && !s.equals(".")) {
                 try { value = f.apply(s); } catch(NumberFormatException e){ return false; }
                 inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
-                info.error = inLimits? null : Text.literal(value.doubleValue() < min ?
+                info.error = inLimits? null : Component.literal(value.doubleValue() < min ?
                         "§cMinimum " + (isNumber? "value" : "length") + (cast? " is " + (int)min : " is " + min) :
-                        "§cMaximum " + (isNumber? "value" : "length") + (cast? " is " + (int)max : " is " + max)).formatted(Formatting.RED);
+                        "§cMaximum " + (isNumber? "value" : "length") + (cast? " is " + (int)max : " is " + max)).withStyle(ChatFormatting.RED);
                 t.setTooltip(getTooltip(info));
             }
 
             info.tempValue = s;
-            t.setEditableColor(inLimits? 0xFFFFFFFF : 0xFFFF7777);
+            t.setTextColor(inLimits? 0xFFFFFFFF : 0xFFFF7777);
             info.inLimits = inLimits;
             b.active = entries.stream().allMatch(e -> e.inLimits);
 
@@ -163,7 +162,7 @@ public abstract class TXFConfig {
                 if (!s.contains("#")) s = '#' + s;
                 if (!HEXADECIMAL_ONLY.matcher(s).matches()) return false;
                 try {
-                    info.colorButton.setMessage(Text.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
+                    info.colorButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
                 } catch (Exception ignored) {}
             }
             return true;
@@ -192,7 +191,7 @@ public abstract class TXFConfig {
     @Environment(EnvType.CLIENT)
     public static class MidnightConfigScreen extends Screen {
         protected MidnightConfigScreen(Screen parent, String modid) {
-            super(Text.translatable(modid + ".config." + "title"));
+            super(Component.translatable(modid + ".config." + "title"));
             this.parent = parent;
             this.modid = modid;
             this.translationPrefix = modid + ".config.";
@@ -202,18 +201,18 @@ public abstract class TXFConfig {
                 if (e.id.equals(modid)) {
                     String tabId = e.field.isAnnotationPresent(Entry.class) ? e.field.getAnnotation(Entry.class).category() : e.field.getAnnotation(Comment.class).category();
                     String name = translationPrefix + "category." + tabId;
-                    if (!I18n.hasTranslation(name) && tabId.equals("default"))
+                    if (!I18n.exists(name) && tabId.equals("default"))
                         name = translationPrefix + "title";
                     if (!tabs.containsKey(name)) {
-                        Tab tab = new GridScreenTab(Text.translatable(name));
+                        Tab tab = new GridLayoutTab(Component.translatable(name));
                         e.tab = tab;
                         tabs.put(name, tab);
                     } else e.tab = tabs.get(name);
                 }
             }
-            tabNavigation = TabNavigationWidget.builder(tabManager, this.width).tabs(tabs.values().toArray(new Tab[0])).build();
+            tabNavigation = TabNavigationBar.builder(tabManager, this.width).addTabs(tabs.values().toArray(new Tab[0])).build();
             tabNavigation.selectTab(0, false);
-            tabNavigation.init();
+            tabNavigation.arrangeElements();
             prevTab = tabManager.getCurrentTab();
         }
         public final String translationPrefix;
@@ -224,8 +223,8 @@ public abstract class TXFConfig {
         public TabManager tabManager = new TabManager(a -> {}, a -> {});
         public Map<String, Tab> tabs = new HashMap<>();
         public Tab prevTab;
-        public TabNavigationWidget tabNavigation;
-        public ButtonWidget done;
+        public TabNavigationBar tabNavigation;
+        public Button done;
         public double scrollProgress = 0d;
 
         // Real Time config update //
@@ -247,10 +246,10 @@ public abstract class TXFConfig {
         public void updateResetButtons() {
             if (this.list != null) {
                 for (ButtonEntry entry : this.list.children()) {
-                    if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof ButtonWidget button) {
+                    if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof Button button) {
                         button.active = !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
-                        if (button.active) button.setTooltip(Tooltip.of(Text.translatable("controls.reset").formatted(Formatting.RED)));
-                        else button.setTooltip(Tooltip.of(Text.empty()));
+                        if (button.active) button.setTooltip(Tooltip.create(Component.translatable("controls.reset").withStyle(ChatFormatting.RED)));
+                        else button.setTooltip(Tooltip.create(Component.empty()));
                     }
                 }
             }
@@ -269,21 +268,21 @@ public abstract class TXFConfig {
         }
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (this.tabNavigation.trySwitchTabsWithKey(keyCode)) return true;
+            if (this.tabNavigation.keyPressed(keyCode)) return true;
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         @Override
         public void init() {
             super.init();
             tabNavigation.setWidth(this.width);
-            tabNavigation.init();
-            if (tabs.size() > 1) this.addDrawableChild(tabNavigation);
+            tabNavigation.arrangeElements();
+            if (tabs.size() > 1) this.addRenderableWidget(tabNavigation);
 
-            this.addDrawableChild(ButtonWidget.builder(ScreenTexts.CANCEL, button -> {
+            this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> {
                 loadValues();
-                Objects.requireNonNull(client).setScreen(parent);
-            }).dimensions(this.width / 2 - 154, this.height - 28, 150, 20).build());
-            done = this.addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, (button) -> {
+                Objects.requireNonNull(minecraft).setScreen(parent);
+            }).bounds(this.width / 2 - 154, this.height - 28, 150, 20).build());
+            done = this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, (button) -> {
                 for (EntryInfo info : entries)
                     if (info.id.equals(modid)) {
                         try {
@@ -291,12 +290,12 @@ public abstract class TXFConfig {
                         } catch (IllegalAccessException ignored) {}
                     }
                 write(modid);
-                Objects.requireNonNull(client).setScreen(parent);
-            }).dimensions(this.width / 2 + 4, this.height - 28, 150, 20).build());
+                Objects.requireNonNull(minecraft).setScreen(parent);
+            }).bounds(this.width / 2 + 4, this.height - 28, 150, 20).build());
 
-            this.list = new MidnightConfigListWidget(this.client, this.width, this.height, 32, this.height - 32, 25);
-            if (this.client != null && this.client.world != null) this.list.setRenderBackground(false);
-            this.addSelectableChild(this.list);
+            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height - 64, 32, 25);
+            if (this.minecraft != null && this.minecraft.level != null) this.list.setRenderBackground(false);
+            this.addWidget(this.list);
 
             fillList();
             reload = true;
@@ -304,59 +303,59 @@ public abstract class TXFConfig {
         public void fillList() {
             for (EntryInfo info : entries) {
                 if (info.id.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
-                    Text name = Objects.requireNonNullElseGet(info.name, () -> Text.translatable(translationPrefix + info.field.getName()));
-                    TextIconButtonWidget resetButton = TextIconButtonWidget.builder(Text.translatable("controls.reset"), (button -> {
+                    Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
+                    SpriteIconButton resetButton = SpriteIconButton.builder(Component.translatable("controls.reset"), (button -> {
                         info.value = info.defaultValue;
                         info.tempValue = info.defaultValue.toString();
                         info.index = 0;
                         list.clear();
                         fillList();
-                    }), true).texture(new Identifier("configlibtxf","icon/reset"), 12, 12).dimension(40, 20).build();
+                    }), true).sprite(new ResourceLocation("configlibtxf","icon/reset"), 12, 12).size(40, 20).build();
                     resetButton.setPosition(width - 205, 0);
 
                     if (info.widget instanceof Map.Entry) {
-                        Map.Entry<ButtonWidget.PressAction, Function<Object, Text>> widget = (Map.Entry<ButtonWidget.PressAction, Function<Object, Text>>) info.widget;
+                        Map.Entry<Button.OnPress, Function<Object, Component>> widget = (Map.Entry<Button.OnPress, Function<Object, Component>>) info.widget;
                         if (info.field.getType().isEnum())
-                            widget.setValue(value -> Text.translatable(translationPrefix + "enum." + info.field.getType().getSimpleName() + "." + info.value.toString()));
-                        this.list.addButton(List.of(ButtonWidget.builder(widget.getValue().apply(info.value), widget.getKey()).dimensions(width - 160, 0, 150, 20).tooltip(getTooltip(info)).build(), resetButton), name, info);
+                            widget.setValue(value -> Component.translatable(translationPrefix + "enum." + info.field.getType().getSimpleName() + "." + info.value.toString()));
+                        this.list.addButton(List.of(Button.builder(widget.getValue().apply(info.value), widget.getKey()).bounds(width - 160, 0, 150, 20).tooltip(getTooltip(info)).build(), resetButton), name, info);
                     } else if (info.field.getType() == List.class) {
                         if (!reload) info.index = 0;
-                        TextFieldWidget widget = new TextFieldWidget(textRenderer, width - 160, 0, 150, 20, Text.empty());
+                        EditBox widget = new EditBox(font, width - 160, 0, 150, 20, Component.empty());
                         widget.setMaxLength(info.width);
                         if (info.index < ((List<String>) info.value).size())
-                            widget.setText((String.valueOf(((List<String>) info.value).get(info.index))));
-                        Predicate<String> processor = ((BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) info.widget).apply(widget, done);
-                        widget.setTextPredicate(processor);
+                            widget.setValue((String.valueOf(((List<String>) info.value).get(info.index))));
+                        Predicate<String> processor = ((BiFunction<EditBox, Button, Predicate<String>>) info.widget).apply(widget, done);
+                        widget.setFilter(processor);
                         resetButton.setWidth(20);
-                        ButtonWidget cycleButton = ButtonWidget.builder(Text.literal(String.valueOf(info.index)).formatted(Formatting.GOLD), (button -> {
+                        Button cycleButton = Button.builder(Component.literal(String.valueOf(info.index)).withStyle(ChatFormatting.GOLD), (button -> {
                             if (((List<?>) info.value).contains("")) ((List<String>) info.value).remove("");
                             info.index = info.index + 1;
                             if (info.index > ((List<String>) info.value).size()) info.index = 0;
                             list.clear();
                             fillList();
-                        })).dimensions(width - 185, 0, 20, 20).build();
+                        })).bounds(width - 185, 0, 20, 20).build();
                         widget.setTooltip(getTooltip(info));
                         this.list.addButton(List.of(widget, resetButton, cycleButton), name, info);
                     } else if (info.widget != null) {
-                        ClickableWidget widget;
+                        AbstractWidget widget;
                         Entry e = info.field.getAnnotation(Entry.class);
                         if (e.isSlider())
-                            widget = new MidnightSliderWidget(width - 160, 0, 150, 20, Text.of(info.tempValue), (Double.parseDouble(info.tempValue) - e.min()) / (e.max() - e.min()), info);
+                            widget = new MidnightSliderWidget(width - 160, 0, 150, 20, Component.nullToEmpty(info.tempValue), (Double.parseDouble(info.tempValue) - e.min()) / (e.max() - e.min()), info);
                         else
-                            widget = new TextFieldWidget(textRenderer, width - 160, 0, 150, 20, null, Text.of(info.tempValue));
-                        if (widget instanceof TextFieldWidget textField) {
+                            widget = new EditBox(font, width - 160, 0, 150, 20, null, Component.nullToEmpty(info.tempValue));
+                        if (widget instanceof EditBox textField) {
                             textField.setMaxLength(info.width);
-                            textField.setText(info.tempValue);
-                            Predicate<String> processor = ((BiFunction<TextFieldWidget, ButtonWidget, Predicate<String>>) info.widget).apply(textField, done);
-                            textField.setTextPredicate(processor);
+                            textField.setValue(info.tempValue);
+                            Predicate<String> processor = ((BiFunction<EditBox, Button, Predicate<String>>) info.widget).apply(textField, done);
+                            textField.setFilter(processor);
                         }
                         widget.setTooltip(getTooltip(info));
                         if (e.isColor()) {
                             resetButton.setWidth(20);
-                            ButtonWidget colorButton = ButtonWidget.builder(Text.literal("⬛"), (button -> {
-                            })).dimensions(width - 185, 0, 20, 20).build();
+                            Button colorButton = Button.builder(Component.literal("⬛"), (button -> {
+                            })).bounds(width - 185, 0, 20, 20).build();
                             try {
-                                colorButton.setMessage(Text.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
+                                colorButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
                             } catch (Exception ignored) {
                             }
                             info.colorButton = colorButton;
@@ -372,26 +371,26 @@ public abstract class TXFConfig {
             }
         }
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
             super.render(context,mouseX,mouseY,delta);
             this.list.render(context, mouseX, mouseY, delta);
 
-            if (tabs.size() < 2) context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 15, 0xFFFFFF);
+            if (tabs.size() < 2) context.drawCenteredString(font, title, width / 2, 15, 0xFFFFFF);
         }
     }
     @Environment(EnvType.CLIENT)
-    public static class MidnightConfigListWidget extends ElementListWidget<ButtonEntry> {
-        TextRenderer textRenderer;
+    public static class MidnightConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
+        Font textRenderer;
 
-        public MidnightConfigListWidget(MinecraftClient minecraftClient, int i, int j, int k, int l, int m) {
-            super(minecraftClient, i, j, k, l, m);
+        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int m) {
+            super(minecraftClient, i, j, k, m);
             this.centerListVertically = false;
-            textRenderer = minecraftClient.textRenderer;
+            textRenderer = minecraftClient.font;
         }
         @Override
-        public int getScrollbarPositionX() { return this.width -7; }
+        public int getScrollbarPosition() { return this.width -7; }
 
-        public void addButton(List<ClickableWidget> buttons, Text text, EntryInfo info) {
+        public void addButton(List<AbstractWidget> buttons, Component text, EntryInfo info) {
             this.addEntry(new ButtonEntry(buttons, text, info));
         }
         public void clear() {
@@ -400,40 +399,40 @@ public abstract class TXFConfig {
         @Override
         public int getRowWidth() { return 10000; }
     }
-    public static class ButtonEntry extends ElementListWidget.Entry<ButtonEntry> {
-        private static final TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
-        public final List<ClickableWidget> buttons;
-        private final Text text;
+    public static class ButtonEntry extends ContainerObjectSelectionList.Entry<ButtonEntry> {
+        private static final Font textRenderer = Minecraft.getInstance().font;
+        public final List<AbstractWidget> buttons;
+        private final Component text;
         public final EntryInfo info;
-        private final List<ClickableWidget> children = new ArrayList<>();
-        public static final Map<ClickableWidget, Text> buttonsWithText = new HashMap<>();
+        private final List<AbstractWidget> children = new ArrayList<>();
+        public static final Map<AbstractWidget, Component> buttonsWithText = new HashMap<>();
 
-        private ButtonEntry(List<ClickableWidget> buttons, Text text, EntryInfo info) {
+        private ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
             if (!buttons.isEmpty()) buttonsWithText.put(buttons.get(0),text);
             this.buttons = buttons;
             this.text = text;
             this.info = info;
             children.addAll(buttons);
         }
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             buttons.forEach(b -> { b.setY(y); b.render(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
-                if (info.centered) context.drawTextWithShadow(textRenderer, text, MinecraftClient.getInstance().getWindow().getScaledWidth() / 2 - (textRenderer.getWidth(text) / 2), y + 5, 0xFFFFFF);
+                if (info.centered) context.drawString(textRenderer, text, Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2), y + 5, 0xFFFFFF);
                 else {
                     int wrappedY = y;
-                    for(Iterator<OrderedText> iterator = textRenderer.wrapLines(text, (buttons.size() > 1 ? buttons.get(1).getX()-24 : MinecraftClient.getInstance().getWindow().getScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
-                        OrderedText orderedText = iterator.next();
-                        context.drawTextWithShadow(textRenderer, orderedText, 12, wrappedY + 5, 0xFFFFFF);
+                    for(Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX()-24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
+                        FormattedCharSequence orderedText = iterator.next();
+                        context.drawString(textRenderer, orderedText, 12, wrappedY + 5, 0xFFFFFF);
                     }
                 }
             }
         }
-        public List<? extends Element> children() {return children;}
-        public List<? extends Selectable> selectableChildren() {return children;}
+        public List<? extends GuiEventListener> children() {return children;}
+        public List<? extends NarratableEntry> narratables() {return children;}
     }
-    public static class MidnightSliderWidget extends SliderWidget {
+    public static class MidnightSliderWidget extends AbstractSliderButton {
         private final EntryInfo info; private final Entry e;
-        public MidnightSliderWidget(int x, int y, int width, int height, Text text, double value, EntryInfo info) {
+        public MidnightSliderWidget(int x, int y, int width, int height, Component text, double value, EntryInfo info) {
             super(x, y, width, height, text, value);
             this.e = info.field.getAnnotation(Entry.class);
             this.info = info;
@@ -441,7 +440,7 @@ public abstract class TXFConfig {
 
         @Override
         protected void updateMessage() {
-            this.setMessage(Text.of(info.tempValue));
+            this.setMessage(Component.nullToEmpty(info.tempValue));
         }
 
         @Override

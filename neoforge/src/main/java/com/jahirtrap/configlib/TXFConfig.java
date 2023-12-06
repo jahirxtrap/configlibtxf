@@ -294,7 +294,7 @@ public abstract class TXFConfig {
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 28, 150, 20).build());
 
-            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height, 32, this.height - 32, 25);
+            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height - 64, 32, 25);
             if (this.minecraft != null && this.minecraft.level != null) this.list.setRenderBackground(false);
             this.addWidget(this.list);
 
@@ -383,8 +383,8 @@ public abstract class TXFConfig {
     public static class MidnightConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
         Font textRenderer;
 
-        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int l, int m) {
-            super(minecraftClient, i, j, k, l, m);
+        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int m) {
+            super(minecraftClient, i, j, k, m);
             this.centerListVertically = false;
             textRenderer = minecraftClient.font;
         }
