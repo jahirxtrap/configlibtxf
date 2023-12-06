@@ -249,8 +249,8 @@ public abstract class TXFConfig {
                 for (ButtonEntry entry : this.list.children()) {
                     if (entry.buttons != null && entry.buttons.size() > 1 && entry.buttons.get(1) instanceof Button button) {
                         button.active = !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
-                        if (button.active) button.setTooltip(Tooltip.create(Component.translatable("controls.reset").withStyle(ChatFormatting.RED)));
-                        else button.setTooltip(Tooltip.create(Component.empty()));
+                        // if (button.active) button.setTooltip(Tooltip.create(Component.translatable("controls.reset").withStyle(ChatFormatting.RED)));
+                        // else button.setTooltip(Tooltip.create(Component.empty()));
                     }
                 }
             }
@@ -294,7 +294,7 @@ public abstract class TXFConfig {
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 28, 150, 20).build());
 
-            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height, 32, this.height - 32, 25);
+            this.list = new MidnightConfigListWidget(this.minecraft, this.width, this.height - 64, 32, 25);
             if (this.minecraft != null && this.minecraft.level != null) this.list.setRenderBackground(false);
             this.addWidget(this.list);
 
@@ -383,8 +383,8 @@ public abstract class TXFConfig {
     public static class MidnightConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
         Font textRenderer;
 
-        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int l, int m) {
-            super(minecraftClient, i, j, k, l, m);
+        public MidnightConfigListWidget(Minecraft minecraftClient, int i, int j, int k, int m) {
+            super(minecraftClient, i, j, k, m);
             this.centerListVertically = false;
             textRenderer = minecraftClient.font;
         }
