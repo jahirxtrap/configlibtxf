@@ -12,7 +12,7 @@ base {
 }
 
 minecraft {
-    mappings channel: 'official', version: "1.20.2"
+    mappings channel: 'official', version: minecraft_version
 
     if (file('src/main/resources/META-INF/accesstransformer.cfg').exists()) {
         accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
