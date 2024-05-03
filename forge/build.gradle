@@ -2,7 +2,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'net.minecraftforge.gradle' version '6.0.24'
 }
 
 version = "${version}-forge"
@@ -97,8 +97,6 @@ processResources {
     }
     from project(":common").sourceSets.main.resources
 }
-
-jar.finalizedBy('reobfJar')
 
 publishing {
     publications {
