@@ -158,7 +158,7 @@ public abstract class TXFConfig {
                 info.value = isNumber? value : s;
             else if (inLimits) {
                 if (((List<String>) info.value).size() == info.index) ((List<String>) info.value).add("");
-                ((List<String>) info.value).set(info.index, Arrays.stream(info.tempValue.replace("[", "").replace("]", "").split(", ")).toList().get(0));
+                ((List<String>) info.value).set(info.index, Arrays.stream(info.tempValue.replace("[", "").replace("]", "").split(", ")).toList().getFirst());
             }
 
             if (info.field.getAnnotation(Entry.class).isColor()) {
@@ -398,20 +398,22 @@ public abstract class TXFConfig {
         public final List<AbstractWidget> buttons;
         private final Component text;
         public final EntryInfo info;
+        public boolean centered = false;
         public static final Map<AbstractWidget, Component> buttonsWithText = new HashMap<>();
 
-        private ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
-            if (!buttons.isEmpty()) buttonsWithText.put(buttons.get(0),text);
+        public ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
+            if (!buttons.isEmpty()) buttonsWithText.put(buttons.getFirst(),text);
             this.buttons = buttons;
             this.text = text;
             this.info = info;
+            if (info != null) this.centered = info.centered;
         }
         public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             buttons.forEach(b -> { b.setY(y); b.render(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
                 int wrappedY = y;
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX() - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
-                    context.drawString(textRenderer, iterator.next(), (info.centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFF);
+                    context.drawString(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFF);
                 }
             }
         }
