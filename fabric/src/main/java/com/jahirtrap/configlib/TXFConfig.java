@@ -1,5 +1,6 @@
 package com.jahirtrap.configlib;
 
+import com.google.common.collect.Lists;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
@@ -102,7 +103,7 @@ public abstract class TXFConfig {
         info.id = modid;
 
         if (e != null) {
-            if (!e.name().equals("")) info.name = new TranslatableComponent(e.name());
+            if (!e.name().isEmpty()) info.name = new TranslatableComponent(e.name());
             if (type == int.class) textField(info, Integer::parseInt, INTEGER_ONLY, (int) e.min(), (int) e.max(), true);
             else if (type == float.class) textField(info, Float::parseFloat, DECIMAL_ONLY, (float) e.min(), (float) e.max(), false);
             else if (type == double.class) textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
@@ -377,27 +378,27 @@ public abstract class TXFConfig {
         public final List<AbstractWidget> buttons;
         private final Component text;
         public final EntryInfo info;
-        private final List<AbstractWidget> children = new ArrayList<>();
+        public boolean centered = false;
         public static final Map<AbstractWidget, Component> buttonsWithText = new HashMap<>();
 
-        private ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
+        public ButtonEntry(List<AbstractWidget> buttons, Component text, EntryInfo info) {
             if (!buttons.isEmpty()) buttonsWithText.put(buttons.get(0),text);
             this.buttons = buttons;
             this.text = text;
             this.info = info;
-            children.addAll(buttons);
+            if (info != null) this.centered = info.centered;
         }
         public void render(PoseStack context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             buttons.forEach(b -> { b.y = y; b.render(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
                 int wrappedY = y;
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).x - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
-                    GuiComponent.drawString(context, textRenderer, iterator.next(), (info.centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFF);
+                    GuiComponent.drawString(context, textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFF);
                 }
             }
         }
-        public List<? extends GuiEventListener> children() {return children;}
-        public List<? extends NarratableEntry> narratables() {return children;}
+        public List<? extends GuiEventListener> children() {return Lists.newArrayList(buttons);}
+        public List<? extends NarratableEntry> narratables() {return Lists.newArrayList(buttons);}
     }
     public static class MidnightSliderWidget extends AbstractSliderButton {
         private final EntryInfo info; private final Entry e;
