@@ -1,8 +1,7 @@
 plugins {
     id 'java'
     id 'idea'
-    id 'maven-publish'
-    id 'fabric-loom'
+    id 'fabric-loom' version '1.6-SNAPSHOT'
 }
 
 version = "${version}-fabric"
@@ -30,8 +29,8 @@ dependencies {
 }
 
 loom {
-    if (project(":common").file("src/main/resources/${mod_id}.accesswidener").exists()) {
-        accessWidenerPath.set(project(":common").file("src/main/resources/${mod_id}.accesswidener"))
+    if (file("src/main/resources/${mod_id}.aw").exists()) {
+        accessWidenerPath.set(file("src/main/resources/${mod_id}.aw"))
     }
     mixin {
         defaultRefmapName.set("${mod_id}.refmap.json")
@@ -55,18 +54,12 @@ loom {
 tasks.withType(JavaCompile).configureEach {
     source(project(":common").sourceSets.main.allSource)
 }
-tasks.withType(Javadoc).configureEach {
-    source(project(":common").sourceSets.main.allJava)
-}
-tasks.named("sourcesJar", Jar) {
-    from(project(":common").sourceSets.main.allSource)
-}
 
 def resourceTargets = ['fabric.mod.json']
 def replaceProperties = [
         mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: version,
         mod_author: mod_author, mod_description: mod_description,
-        mod_url: mod_url, side: fabric_side,
+        mod_url: mod_url, mod_issues: mod_issues, side: fabric_side,
 ]
 
 processResources {
@@ -80,14 +73,3 @@ processResources {
 }
 
 jar.finalizedBy('remapJar')
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            groupId project.group
-            artifactId project.archivesBaseName
-            version project.version
-            from components.java
-        }
-    }
-}
