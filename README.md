@@ -8,7 +8,7 @@ TXFConfig.init(MODID, MyModConfig.class);
 
 // Registering config screens (Forge)
 ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () ->
-        new ConfigScreenHandler.ConfigScreenFactory((client, parent) -> TXFConfig.getScreen(parent, MODID)));
+        new ConfigScreenHandler.ConfigScreenFactory((client, parent) -> TXFConfigClient.getScreen(parent, MODID)));
 
 // Registering config screens (NeoForge)
 ModLoadingContext.get().registerExtensionPoint(IConfigScreenFactory.class, () ->
