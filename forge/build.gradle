@@ -5,10 +5,7 @@ plugins {
 }
 
 version = "${version}-forge"
-
-base {
-    archivesName = mod_id
-}
+base.archivesName = mod_id
 
 minecraft {
     mappings channel: 'official', version: minecraft_version
