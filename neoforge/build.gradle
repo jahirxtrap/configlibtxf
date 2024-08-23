@@ -5,10 +5,7 @@ plugins {
 }
 
 version = "${version}-neoforge"
-
-base {
-    archivesName = mod_id
-}
+base.archivesName = mod_id
 
 if (file('src/main/resources/META-INF/accesstransformer.cfg').exists()) {
     minecraft.accessTransformers.file file('src/main/resources/META-INF/accesstransformer.cfg')
