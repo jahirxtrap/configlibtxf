@@ -7,14 +7,15 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
-@Mod(ConfigLibMod.MODID)
-@Mod.EventBusSubscriber(modid = ConfigLibMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+import javax.swing.*;
+
+@Mod("configlibtxf")
+@Mod.EventBusSubscriber(modid = "configlibtxf", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ConfigLibMod {
-
-    public static final String MODID = "configlibtxf";
-
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
+        System.setProperty("java.awt.headless", "false");
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
         ModList.get().forEachModContainer((modid, container) -> {
             if (TXFConfig.configClass.containsKey(modid)) {
                 container.registerExtensionPoint(ConfigGuiHandler.ConfigGuiFactory.class, () ->
