@@ -25,6 +25,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -37,7 +38,7 @@ public class TXFConfigClient extends TXFConfig {
     private static final Pattern DECIMAL_ONLY = Pattern.compile("-?(\\d+\\.?\\d*|\\d*\\.?\\d+|\\.)");
     private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("(-?[#0-9a-fA-F]*)");
 
-    private static final List<EntryInfo> entries = new ArrayList<>();
+    private static final List<EntryInfo> entries = new CopyOnWriteArrayList<>();
 
     public static class EntryInfo {
         Field field;
@@ -72,7 +73,7 @@ public class TXFConfigClient extends TXFConfig {
     public static void initClient(String modid, Field field, EntryInit init) {
         Entry e = field.getAnnotation(Entry.class);
         EntryInfo info = new EntryInfo();
-        info.dataType = field.getType();
+        info.dataType = getUnderlyingType(field);
         info.width = e != null ? e.width() : 0;
         info.field = field; info.modid = modid;
         info.centered = init.centered; info.defaultValue = init.defaultValue;
@@ -103,6 +104,13 @@ public class TXFConfigClient extends TXFConfig {
             }
         }
         entries.add(info);
+    }
+    public static Class<?> getUnderlyingType(Field field) {
+        if (field.getType() == List.class) {
+            Class<?> listType = (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+            try { return (Class<?>) listType.getField("TYPE").get(null);
+            } catch (NoSuchFieldException | IllegalAccessException ignored) { return listType; }
+        } else return field.getType();
     }
     public static Tooltip getTooltip(EntryInfo info) {
         String key = info.modid + ".config."+info.field.getName()+".tooltip";
@@ -312,7 +320,7 @@ public class TXFConfigClient extends TXFConfig {
                         } else if (e.selectionMode() > -1) {
                             Button explorerButton = SpriteIconButton.builder(Component.empty(),
                                     button -> new Thread(() -> {
-                                        JFileChooser fileChooser = new JFileChooser();
+                                        JFileChooser fileChooser = new JFileChooser(info.tempValue);
                                         fileChooser.setFileSelectionMode(e.selectionMode()); fileChooser.setDialogType(e.fileChooserType());
                                         if ((e.selectionMode() == JFileChooser.FILES_ONLY || e.selectionMode() == JFileChooser.FILES_AND_DIRECTORIES) && Arrays.stream(e.fileExtensions()).noneMatch("*"::equals))
                                             fileChooser.setFileFilter(new FileNameExtensionFilter(
@@ -367,7 +375,7 @@ public class TXFConfigClient extends TXFConfig {
     }
     public static class ButtonEntry extends ContainerObjectSelectionList.Entry<ButtonEntry> {
         private static final Font textRenderer = Minecraft.getInstance().font;
-        private final Component text;
+        public final Component text;
         public final List<AbstractWidget> buttons;
         public final EntryInfo info;
         public boolean centered = false;
