@@ -7,6 +7,8 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
+import static net.minecraft.client.Minecraft.ON_OSX;
+
 import javax.swing.*;
 
 @Mod("configlibtxf")
@@ -15,7 +17,7 @@ public class ConfigLibMod {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         System.setProperty("java.awt.headless", "false");
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+        try { if (!ON_OSX) { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); }} catch (Exception ignored) {}
         ModList.get().forEachModContainer((modid, container) -> {
             if (TXFConfig.configClass.containsKey(modid)) {
                 container.registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () ->
