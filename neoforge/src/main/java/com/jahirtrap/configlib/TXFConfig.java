@@ -43,6 +43,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static net.minecraft.client.Minecraft.ON_OSX;
+
 @SuppressWarnings("unchecked")
 public abstract class TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
@@ -390,6 +392,7 @@ public abstract class TXFConfig {
                         }
                         List<AbstractWidget> widgets = Lists.newArrayList(widget, resetButton);
                         if (info.actionButton != null) {
+                            if (ON_OSX) info.actionButton.active = false;
                             widget.setWidth(widget.getWidth() - 22); widget.setX(widget.getX() + 22);
                             widgets.add(info.actionButton);
                         } if (cycleButton != null) {
