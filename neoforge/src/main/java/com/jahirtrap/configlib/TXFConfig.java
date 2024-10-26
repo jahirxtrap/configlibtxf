@@ -417,8 +417,9 @@ public abstract class TXFConfig {
                     if (entry.buttons != null && entry.buttons.size() > 2) {
                         if (entry.buttons.get(2) instanceof AbstractWidget widget) {
                             int idMode = entry.info.field.getAnnotation(Entry.class).idMode();
-                            if (idMode != -1) context.renderItem(idMode == 0 ? BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(entry.info.tempValue)).getDefaultInstance() : BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(entry.info.tempValue)).asItem().getDefaultInstance(), widget.getX() + 2, widget.getY() + 2);
-                        }}}}
+                            if (idMode != -1) { ResourceLocation r = ResourceLocation.tryParse(entry.info.tempValue);
+                                if (r != null) if (idMode == 0) BuiltInRegistries.ITEM.get(r).ifPresent(item -> context.renderItem(item.value().getDefaultInstance(), widget.getX() + 2, widget.getY() + 2)); else BuiltInRegistries.BLOCK.get(r).ifPresent(block -> context.renderItem(block.value().asItem().getDefaultInstance(), widget.getX() + 2, widget.getY() + 2));
+                        }}}}}
         }
     }
     @OnlyIn(Dist.CLIENT)
