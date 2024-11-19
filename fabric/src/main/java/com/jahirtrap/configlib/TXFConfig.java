@@ -526,6 +526,7 @@ public abstract class TXFConfig {
         }
     }
 
+    @Environment(EnvType.CLIENT)
     private static void renderItem(PoseStack context, ItemStack stack, int i, int j) {
         if (!stack.isEmpty()) {
             var minecraft = Minecraft.getInstance();
