@@ -203,7 +203,7 @@ public class TXFConfigClient extends TXFConfig {
                 this.list.clear(); fillList();
                 list.setScrollAmount(0);
             }
-            scrollProgress = list.getScrollAmount();
+            scrollProgress = list.scrollAmount();
             for (EntryInfo info : entries) try {info.field.set(null, info.value);} catch (IllegalAccessException ignored) {}
             updateButtons();
         }
@@ -371,7 +371,7 @@ public class TXFConfigClient extends TXFConfig {
     @OnlyIn(Dist.CLIENT)
     public static class ConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
         public ConfigListWidget(Minecraft client, int width, int height, int y, int itemHeight) { super(client, width, height, y, itemHeight); }
-        @Override public int getScrollbarPosition() { return this.width - 7; }
+        @Override public int scrollBarX() { return this.width - 7; }
 
         public void addButton(List<AbstractWidget> buttons, Component text, EntryInfo info) { this.addEntry(new ButtonEntry(buttons, text, info)); }
         public void clear() { this.clearEntries(); }
