@@ -9,6 +9,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -307,6 +308,9 @@ public abstract class TXFConfig {
                 write(modid); cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 5, this.height - 27, 150, 20).build());
+            Button editorButton = this.addRenderableWidget(TextAndImageButton.builder(Component.empty(), new ResourceLocation("configlibtxf","textures/gui/sprites/icon/editor.png"), button -> Util.getPlatform().openFile(FabricLoader.getInstance().getConfigDir().resolve(modid + ".json").toFile())).textureSize(12, 12).usedTextureSize(12, 12).offset(0, 4).build());
+            editorButton.setWidth(20);
+            editorButton.setPosition(this.width / 2 - 182, this.height - 27);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height, 32, this.height - 32, 25);
             if (this.minecraft != null && this.minecraft.level != null) this.list.setRenderBackground(false);
@@ -316,7 +320,7 @@ public abstract class TXFConfig {
             for (EntryInfo info : entries) {
                 if (info.modid.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
                     Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
-                    Button resetButton = TextAndImageButton.builder(Component.translatable("controls.reset"), new ResourceLocation("configlibtxf", "textures/gui/sprites/icon/reset.png"), (button -> {
+                    Button resetButton = TextAndImageButton.builder(Component.empty(), new ResourceLocation("configlibtxf", "textures/gui/sprites/icon/reset.png"), (button -> {
                         info.value = info.defaultValue; info.listIndex = 0;
                         info.tempValue = info.toTemporaryValue();
                         list.clear(); fillList();
@@ -370,10 +374,10 @@ public abstract class TXFConfig {
                             try { colorButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
                             } catch (Exception ignored) {}
                             info.actionButton = colorButton;
-                        } else if (e.idMode() > -1) {
-                            EditBox itemField = new TextField(font, width - 185, 0, 20, 20, Component.empty());
-                            itemField.active = false;
-                            info.actionButton = itemField;
+                        } else if (e.idMode() == 0 || e.idMode() == 1) {
+                            info.actionButton = new ItemField(font, width - 185, 0, 20, 20, e.idMode());
+                        } else if (!e.itemDisplay().isBlank()) {
+                            info.actionButton = new ItemField(font, width - 185, 0, 20, 20, e.itemDisplay());
                         } else if (e.selectionMode() > -1) {
                             Button explorerButton = TextAndImageButton.builder(Component.empty(), new ResourceLocation("configlibtxf", "textures/gui/sprites/icon/explorer.png"),
                                     button -> new Thread(() -> {
@@ -413,14 +417,7 @@ public abstract class TXFConfig {
             this.renderBackground(context);
             this.list.render(context, mouseX, mouseY, delta);
             super.render(context,mouseX,mouseY,delta);
-
-            if (this.list != null) {
-                for (ButtonEntry entry : this.list.children()) {
-                    if (entry.buttons != null && entry.buttons.size() > 2) {
-                        if (entry.buttons.get(2) instanceof EditBox widget) {
-                            int idMode = entry.info.field.getAnnotation(Entry.class).idMode();
-                            if (idMode != -1) context.renderItem(idMode == 0 ? BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(entry.info.tempValue)).getDefaultInstance() : BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(entry.info.tempValue)).asItem().getDefaultInstance(), widget.getX() + 1, widget.getY() + 1);
-                        }}}}
+            if (this.list != null) for (ButtonEntry entry : this.list.children()) if (entry.buttons != null && entry.buttons.size() > 2) if (entry.buttons.get(2) instanceof ItemField widget && widget.dynamic) widget.setItem(entry.info.tempValue);
         }
     }
     @Environment(EnvType.CLIENT)
@@ -481,6 +478,7 @@ public abstract class TXFConfig {
         int fileChooserType() default JFileChooser.OPEN_DIALOG;
         String[] fileExtensions() default {"*"};
         int idMode() default -1;               // -1 for none, 0 for item, 1 for block
+        String itemDisplay() default "";
         boolean isColor() default false;
         boolean isSlider() default false;
         int precision() default 100;
@@ -517,6 +515,41 @@ public abstract class TXFConfig {
                 return false;
             }
             return super.mouseClicked(d, e, i);
+        }
+    }
+
+    private static class ItemField extends EditBox {
+        private final int idMode;
+        private boolean dynamic;
+        private String item;
+
+        public ItemField(Font font, int x, int y, int width, int height, int idMode) {
+            super(font, x, y, width, height, Component.empty());
+            this.active = false;
+            this.idMode = idMode;
+            this.dynamic = true;
+        }
+
+        public ItemField(Font font, int x, int y, int width, int height, String item) {
+            this(font, x, y, width, height, 0);
+            this.dynamic = false;
+            this.item = item;
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
+            super.renderWidget(context, mouseX, mouseY, delta);
+            if (item != null) {
+                ResourceLocation r = ResourceLocation.tryParse(item);
+                if (r != null) {
+                    var optStack = (idMode == 0) ? BuiltInRegistries.ITEM.getOptional(r).map(item -> item.getDefaultInstance()) : BuiltInRegistries.BLOCK.getOptional(r).map(block -> block.asItem().getDefaultInstance());
+                    optStack.ifPresent(stack -> context.renderItem(stack, this.getX() + (this.width - 16) / 2, this.getY() + (this.height - 16) / 2));
+                }
+            }
+        }
+
+        public void setItem(String item) {
+            if (this.dynamic) this.item = item;
         }
     }
 }
