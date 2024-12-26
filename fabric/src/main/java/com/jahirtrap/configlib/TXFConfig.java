@@ -518,7 +518,7 @@ public abstract class TXFConfig {
         }
     }
 
-    private static class ItemField extends EditBox {
+    private static class ItemField extends TextField {
         private final int idMode;
         private boolean dynamic;
         private String item;
