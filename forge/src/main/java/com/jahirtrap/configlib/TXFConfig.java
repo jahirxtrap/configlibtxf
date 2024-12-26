@@ -73,6 +73,7 @@ public abstract class TXFConfig {
         int fileChooserType() default JFileChooser.OPEN_DIALOG;
         String[] fileExtensions() default {"*"};
         int idMode() default -1;               // -1 for none, 0 for item, 1 for block
+        String itemDisplay() default "";
         boolean isColor() default false;
         boolean isSlider() default false;
         int precision() default 100;
