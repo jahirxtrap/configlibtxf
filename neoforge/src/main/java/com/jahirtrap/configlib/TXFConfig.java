@@ -22,6 +22,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
 
@@ -76,6 +77,11 @@ public abstract class TXFConfig {
             if (this.field.getType() != List.class) return this.value.toString();
             else try { return ((List<?>) this.value).get(this.listIndex).toString(); } catch (Exception ignored) {return "";}
         }
+        public String toFormattedName() {
+            String[] words = (this.dataType.isEnum() ? this.value.toString() : this.field.getName()).split(this.dataType.isEnum() ? "_" : "(?=[A-Z])");
+            for (int i = 0; i < words.length; i++) words[i] = words[i].substring(0, 1).toUpperCase() + words[i].substring(1).toLowerCase();
+            return String.join(" ", words);
+        }
         public <T> void writeList(int index, T value) {
             var list = new ArrayList<>((List<T>) this.value);
             if (index >= list.size()) list.add(value);
@@ -101,7 +107,6 @@ public abstract class TXFConfig {
             EntryInfo info = new EntryInfo();
             if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.dist.isClient()))
                 initClient(modid, field, info);
-            if (field.isAnnotationPresent(Comment.class)) info.centered = field.getAnnotation(Comment.class).centered();
             if (field.isAnnotationPresent(Entry.class))
                 try { info.defaultValue = field.get(null);
                 } catch (IllegalAccessException ignored) {}
@@ -119,17 +124,13 @@ public abstract class TXFConfig {
     @OnlyIn(Dist.CLIENT)
     private static void initClient(String modid, Field field, EntryInfo info) {
         Entry e = field.getAnnotation(Entry.class);
+        Comment c = field.getAnnotation(Comment.class);
         info.dataType = getUnderlyingType(field);
         info.width = e != null ? e.width() : 0;
         info.field = field; info.modid = modid;
-        if (info.dataType == List.class) {
-            Class<?> listType = (Class<?>) ((ParameterizedType) info.field.getGenericType()).getActualTypeArguments()[0];
-            try { info.dataType = (Class<?>) listType.getField("TYPE").get(null);
-            } catch (NoSuchFieldException | IllegalAccessException ignored) { info.dataType = listType; }
-        }
 
         if (e != null) {
-            if (!e.name().isEmpty()) info.name = Component.translatable(e.name());
+            if (!e.name().isEmpty()) info.name = Component.literal(e.name());
             if (info.dataType == int.class) textField(info, Integer::parseInt, INTEGER_ONLY, (int) e.min(), (int) e.max(), true);
             else if (info.dataType == float.class) textField(info, Float::parseFloat, DECIMAL_ONLY, (float) e.min(), (float) e.max(), false);
             else if (info.dataType == double.class) textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
@@ -141,25 +142,31 @@ public abstract class TXFConfig {
                 }, func);
             } else if (info.dataType.isEnum()) {
                 List<?> values = Arrays.asList(field.getType().getEnumConstants());
-                Function<Object, Component> func = value -> Component.translatable(modid + ".config." + "enum." + info.dataType.getSimpleName() + "." + info.value.toString());
+                Function<Object, Component> func = value -> {
+                    String translationKey = modid + ".config.enum." + info.dataType.getSimpleName() + "." + info.toTemporaryValue();
+                    return I18n.exists(translationKey) ? Component.translatable(translationKey) : Component.literal(info.toFormattedName());
+                };
                 info.function = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     int index = values.indexOf(info.value) + 1;
                     info.value = values.get(index >= values.size() ? 0 : index); button.setMessage(func.apply(info.value));
                 }, func);
-            }
+        }} else if (c != null) {
+            info.centered = c.centered();
         }
         entries.add(info);
     }
     public static Class<?> getUnderlyingType(Field field) {
-        if (field.getType() == List.class) {
-            Class<?> listType = (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
-            try { return (Class<?>) listType.getField("TYPE").get(null);
-            } catch (NoSuchFieldException | IllegalAccessException ignored) { return listType; }
-        } else return field.getType();
+        Class<?> rawType = field.getType();
+        if (field.getType() == List.class) rawType = (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+        try { return (Class<?>) rawType.getField("TYPE").get(null);
+        } catch (NoSuchFieldException | IllegalAccessException ignored) { return rawType; }
     }
     public static Tooltip getTooltip(EntryInfo info) {
         String key = info.modid + ".config."+info.field.getName()+".tooltip";
         return Tooltip.create(info.error != null ? info.error : I18n.exists(key) ? Component.translatable(key) : Component.empty());
+    }
+    public static String getModName(String modId) {
+        return ModList.get().getModContainerById(modId).map(container -> container.getModInfo().getDisplayName()).orElse(modId);
     }
 
     private static void textField(EntryInfo info, Function<String,Number> f, Pattern pattern, double min, double max, boolean cast) {
@@ -216,7 +223,7 @@ public abstract class TXFConfig {
     @OnlyIn(Dist.CLIENT)
     public static class ConfigScreen extends Screen {
         protected ConfigScreen(Screen parent, String modid) {
-            super(Component.translatable(modid + ".config." + "title"));
+            super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
             this.parent = parent; this.modid = modid;
             this.translationPrefix = modid + ".config.";
             loadValues();
@@ -225,8 +232,10 @@ public abstract class TXFConfig {
                 if (e.modid.equals(modid)) {
                     String tabId = e.field.isAnnotationPresent(Entry.class) ? e.field.getAnnotation(Entry.class).category() : e.field.getAnnotation(Comment.class).category();
                     String name = translationPrefix + "category." + tabId;
-                    if (!I18n.exists(name) && tabId.equals("default"))
-                        name = translationPrefix + "title";
+                    if (!I18n.exists(name)) {
+                        if (tabId.equals("default")) name = title.getString();
+                        else name = tabId.substring(0, 1).toUpperCase() + tabId.substring(1).toLowerCase();
+                    }
                     if (!tabs.containsKey(name)) {
                         Tab tab = new GridLayoutTab(Component.translatable(name));
                         e.tab = tab;
@@ -243,7 +252,7 @@ public abstract class TXFConfig {
         public final Screen parent;
         public ConfigListWidget list;
         public TabManager tabManager = new TabManager(a -> {}, a -> {});
-        public Map<String, Tab> tabs = new HashMap<>();
+        public Map<String, Tab> tabs = new LinkedHashMap<>();
         public Tab prevTab;
         public TabNavigationBar tabNavigation;
         public Button done;
@@ -319,6 +328,7 @@ public abstract class TXFConfig {
             for (EntryInfo info : entries) {
                 if (info.modid.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
                     Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
+                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName())) name = Component.literal(info.toFormattedName());
                     Button resetButton = SpriteIconButton.builder(Component.empty(), (button -> {
                         info.value = info.defaultValue; info.listIndex = 0;
                         info.tempValue = info.toTemporaryValue();
@@ -332,8 +342,6 @@ public abstract class TXFConfig {
 
                         if (info.function instanceof Map.Entry) { // Enums & booleans
                             var values = (Map.Entry<Button.OnPress, Function<Object, Component>>) info.function;
-                            if (info.dataType.isEnum())
-                                values.setValue(value -> Component.translatable(translationPrefix + "enum." + info.field.getType().getSimpleName() + "." + info.value.toString()));
                             widget = Button.builder(values.getValue().apply(info.value), values.getKey()).bounds(width - 185, 0, 150, 20).tooltip(getTooltip(info)).build();
                         }
                         else if (e.isSlider())
