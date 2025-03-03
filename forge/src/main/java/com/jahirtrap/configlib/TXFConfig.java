@@ -20,11 +20,6 @@ import java.nio.file.Path;
 import java.util.*;
 
 public abstract class TXFConfig {
-    public static class EntryInit {
-        boolean centered;
-        Object defaultValue;
-    }
-
     public static final Map<String, Class<? extends TXFConfig>> configClass = new HashMap<>();
     public static Path path;
 
@@ -39,13 +34,8 @@ public abstract class TXFConfig {
         configClass.put(modid, config);
 
         for (Field field : config.getFields()) {
-            EntryInit init = new EntryInit();
-            if (field.isAnnotationPresent(Comment.class)) init.centered = field.getAnnotation(Comment.class).centered();
-            if (field.isAnnotationPresent(Entry.class))
-                try { init.defaultValue = field.get(null);
-                } catch (IllegalAccessException ignored) {}
             if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.dist.isClient()))
-                TXFConfigClient.initClient(modid, field, init);
+                TXFConfigClient.initClient(modid, field);
         }
         try { gson.fromJson(Files.newBufferedReader(path), config); }
         catch (Exception e) { write(modid); }
