@@ -1,10 +1,8 @@
 package com.jahirtrap.configlib;
 
 import com.google.common.collect.Lists;
-import com.google.gson.ExclusionStrategy;
-import com.google.gson.FieldAttributes;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
+import com.google.gson.stream.*;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -29,6 +27,7 @@ import net.neoforged.fml.loading.FMLPaths;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.Color;
+import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -96,8 +95,10 @@ public abstract class TXFConfig {
     private static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
             .addSerializationExclusionStrategy(new HiddenAnnotationExclusionStrategy())
-            .registerTypeAdapter(ResourceLocation.class, new ResourceLocation.Serializer())
-            .setPrettyPrinting().create();
+            .registerTypeAdapter(ResourceLocation.class, new TypeAdapter<ResourceLocation>() {
+                public void write(JsonWriter out, ResourceLocation id) throws IOException { out.value(id.toString()); }
+                public ResourceLocation read(JsonReader in) throws IOException { return ResourceLocation.parse(in.nextString()); }
+            }).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
         path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json");
