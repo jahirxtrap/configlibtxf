@@ -9,14 +9,14 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
 @Mod("configlibtxf")
-@EventBusSubscriber(modid = "configlibtxf", bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = "configlibtxf", value = Dist.CLIENT)
 public class ConfigLibMod {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         System.setProperty("java.awt.headless", "false");
         ModList.get().forEachModContainer((modid, container) -> {
             if (TXFConfig.configClass.containsKey(modid)) {
-                container.registerExtensionPoint(IConfigScreenFactory.class, (client, parent) -> TXFConfig.getScreen(parent, modid));
+                container.registerExtensionPoint(IConfigScreenFactory.class, (client, parent) -> TXFConfigClient.getScreen(parent, modid));
             }
         });
     }
