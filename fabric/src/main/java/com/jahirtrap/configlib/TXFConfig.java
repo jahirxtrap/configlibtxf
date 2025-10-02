@@ -16,6 +16,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.components.tabs.*;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.*;
@@ -41,8 +42,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-
-import static net.minecraft.client.Minecraft.ON_OSX;
 
 @SuppressWarnings("unchecked")
 public abstract class TXFConfig {
@@ -291,9 +290,9 @@ public abstract class TXFConfig {
             }
         }
         @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (this.tabNavigation.keyPressed(keyCode)) return true;
-            return super.keyPressed(keyCode, scanCode, modifiers);
+        public boolean keyPressed(KeyEvent keyEvent) {
+            if (this.tabNavigation.keyPressed(keyEvent)) return true;
+            return super.keyPressed(keyEvent);
         }
         @Override
         public void onClose() {
@@ -402,7 +401,7 @@ public abstract class TXFConfig {
                         }
                         List<AbstractWidget> widgets = Lists.newArrayList(widget, resetButton);
                         if (info.actionButton != null) {
-                            if (ON_OSX) info.actionButton.active = false;
+                            if (Util.getPlatform() == Util.OS.OSX) info.actionButton.active = false;
                             widget.setWidth(widget.getWidth() - 22); widget.setX(widget.getX() + 22);
                             widgets.add(info.actionButton);
                         } if (cycleButton != null) {
@@ -444,9 +443,9 @@ public abstract class TXFConfig {
             this.buttons = buttons; this.text = text; this.info = info;
             if (info != null) this.centered = info.centered;
         }
-        public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            buttons.forEach(b -> { b.setY(y); b.render(context, mouseX, mouseY, tickDelta); });
-            if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) { int wrappedY = y;
+        public void renderContent(GuiGraphics context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            buttons.forEach(b -> { b.setY(this.getY()); b.render(context, mouseX, mouseY, tickDelta); });
+            if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) { int wrappedY = this.getY();
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX() - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
                     context.drawString(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFFFF);
                 }

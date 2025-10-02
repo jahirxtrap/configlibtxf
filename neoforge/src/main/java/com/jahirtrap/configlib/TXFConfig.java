@@ -35,7 +35,7 @@ public abstract class TXFConfig {
         configClass.put(modid, config);
 
         for (Field field : config.getFields()) {
-            if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.dist.isClient()))
+            if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.getDist().isClient()))
                 TXFConfigClient.initClient(modid, field);
         }
         try { gson.fromJson(Files.newBufferedReader(path), config); }
