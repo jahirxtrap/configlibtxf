@@ -7,7 +7,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -20,7 +20,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.*;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 
 import javax.swing.*;
@@ -92,9 +92,9 @@ public abstract class TXFConfig {
     private static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
             .addSerializationExclusionStrategy(new HiddenAnnotationExclusionStrategy())
-            .registerTypeAdapter(ResourceLocation.class, new TypeAdapter<ResourceLocation>() {
-                public void write(JsonWriter out, ResourceLocation id) throws IOException { out.value(id.toString()); }
-                public ResourceLocation read(JsonReader in) throws IOException { return ResourceLocation.parse(in.nextString()); }
+            .registerTypeAdapter(Identifier.class, new TypeAdapter<Identifier>() {
+                public void write(JsonWriter out, Identifier id) throws IOException { out.value(id.toString()); }
+                public Identifier read(JsonReader in) throws IOException { return Identifier.parse(in.nextString()); }
             }).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
@@ -189,7 +189,7 @@ public abstract class TXFConfig {
             b.active = entries.stream().allMatch(e -> e.inLimits);
 
             if (inLimits) {
-                if (info.dataType == ResourceLocation.class) info.setValue(ResourceLocation.tryParse(s));
+                if (info.dataType == Identifier.class) info.setValue(Identifier.tryParse(s));
                 else info.setValue(isNumber ? value : s);
             }
 
@@ -316,7 +316,7 @@ public abstract class TXFConfig {
                 write(modid); cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
-            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FabricLoader.getInstance().getConfigDir().resolve(modid + ".json").toFile()), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf","icon/editor"), 12, 12).size(20, 20).build());
+            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FabricLoader.getInstance().getConfigDir().resolve(modid + ".json").toFile()), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf","icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -331,7 +331,7 @@ public abstract class TXFConfig {
                         info.value = info.defaultValue; info.listIndex = 0;
                         info.tempValue = info.toTemporaryValue();
                         list.clear(); fillList();
-                    }), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf","icon/reset"), 12, 12).size(20, 20).build();
+                    }), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf","icon/reset"), 12, 12).size(20, 20).build();
                     resetButton.setPosition(width - 205 + 150 + 25, 0);
 
                     if (info.function != null) {
@@ -395,7 +395,7 @@ public abstract class TXFConfig {
                                             list.clear(); fillList();
                                         }
                                     }).start(), true
-                            ).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/explorer"), 12, 12).size(20, 20).build();
+                            ).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/explorer"), 12, 12).size(20, 20).build();
                             explorerButton.setPosition(width - 185, 0);
                             info.actionButton = explorerButton;
                         }
@@ -522,7 +522,7 @@ public abstract class TXFConfig {
         public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
             super.renderWidget(context, mouseX, mouseY, delta);
             if (item != null) {
-                ResourceLocation r = ResourceLocation.tryParse(item);
+                Identifier r = Identifier.tryParse(item);
                 if (r != null) {
                     var optStack = (idMode == 0) ? BuiltInRegistries.ITEM.get(r).map(item -> item.value().getDefaultInstance()) : BuiltInRegistries.BLOCK.get(r).map(block -> block.value().asItem().getDefaultInstance());
                     optStack.ifPresent(stack -> context.renderItem(stack, this.getX() + (this.width - 16) / 2, this.getY() + (this.height - 16) / 2));

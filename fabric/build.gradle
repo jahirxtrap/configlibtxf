@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'idea'
-    id 'fabric-loom' version '1.11-SNAPSHOT'
+    id 'fabric-loom' version '1.13-SNAPSHOT'
 }
 
 version = "${version}-fabric"
@@ -30,6 +30,7 @@ loom {
         accessWidenerPath.set(aw)
     }
     mixin {
+        useLegacyMixinAp.set(true)
         defaultRefmapName.set("${mod_id}.refmap.json")
     }
     runs {

@@ -2,7 +2,7 @@ package com.jahirtrap.configlib;
 
 import com.google.gson.*;
 import com.google.gson.stream.*;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
 
@@ -25,9 +25,9 @@ public abstract class TXFConfig {
     public static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
             .addSerializationExclusionStrategy(new HiddenAnnotationExclusionStrategy())
-            .registerTypeAdapter(ResourceLocation.class, new TypeAdapter<ResourceLocation>() {
-                public void write(JsonWriter out, ResourceLocation id) throws IOException { out.value(id.toString()); }
-                public ResourceLocation read(JsonReader in) throws IOException { return ResourceLocation.parse(in.nextString()); }
+            .registerTypeAdapter(Identifier.class, new TypeAdapter<Identifier>() {
+                public void write(JsonWriter out, Identifier id) throws IOException { out.value(id.toString()); }
+                public Identifier read(JsonReader in) throws IOException { return Identifier.parse(in.nextString()); }
             }).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
