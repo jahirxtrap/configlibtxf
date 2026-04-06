@@ -5,7 +5,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.components.tabs.*;
@@ -125,7 +125,7 @@ public class TXFConfigClient extends TXFConfig {
         return Tooltip.create(info.error != null ? info.error : I18n.exists(key) ? Component.translatable(key) : Component.empty());
     }
     public static String getModName(String modId) {
-        return ModList.get().getModContainerById(modId).map(container -> container.getModInfo().getDisplayName()).orElse(modId);
+        return ModList.getModContainerById(modId).map(container -> container.getModInfo().getDisplayName()).orElse(modId);
     }
 
     private static void textField(EntryInfo info, Function<String,Number> f, Pattern pattern, double min, double max, boolean cast) {
@@ -256,7 +256,7 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void init() {
             super.init();
-            tabNavigation.setWidth(this.width); tabNavigation.arrangeElements();
+            tabNavigation.updateWidth(this.width); tabNavigation.arrangeElements();
             if (!tabs.isEmpty()) this.addRenderableWidget(tabNavigation);
 
             this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
@@ -298,7 +298,7 @@ public class TXFConfigClient extends TXFConfig {
                         if (widget instanceof EditBox textField) {
                             textField.setMaxLength(info.width); textField.setValue(info.tempValue);
                             Predicate<String> processor = ((BiFunction<EditBox, Button, Predicate<String>>) info.function).apply(textField, done);
-                            textField.setFilter(processor);
+                            textField.setResponder(s -> processor.test(s));
                         }
                         widget.setTooltip(getTooltip(info));
 
@@ -365,10 +365,10 @@ public class TXFConfigClient extends TXFConfig {
             }
         }
         @Override
-        public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-            super.render(context,mouseX,mouseY,delta);
-            renderMenuBackgroundTexture(context, MENU_BACKGROUND, 0, 24, 0, 0, this.width, 7);
-            this.list.render(context, mouseX, mouseY, delta);
+        public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+            super.extractRenderState(context,mouseX,mouseY,delta);
+            extractMenuBackgroundTexture(context, MENU_BACKGROUND, 0, 24, 0, 0, this.width, 7);
+            this.list.extractRenderState(context, mouseX, mouseY, delta);
             if (this.list != null) for (ButtonEntry entry : this.list.children()) if (entry.buttons != null && entry.buttons.size() > 2) if (entry.buttons.get(2) instanceof ItemField widget && widget.dynamic) widget.setItem(entry.info.tempValue);
         }
     }
@@ -392,11 +392,11 @@ public class TXFConfigClient extends TXFConfig {
             this.buttons = buttons; this.text = text; this.info = info;
             if (info != null) this.centered = info.centered;
         }
-        public void renderContent(GuiGraphics context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            buttons.forEach(b -> { b.setY(this.getY()); b.render(context, mouseX, mouseY, tickDelta); });
+        public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            buttons.forEach(b -> { b.setY(this.getY()); b.extractRenderState(context, mouseX, mouseY, tickDelta); });
             if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) { int wrappedY = this.getY();
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX() - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
-                    context.drawString(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFFFF);
+                    context.text(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFFFF);
                 }
             }
         }
@@ -441,13 +441,13 @@ public class TXFConfigClient extends TXFConfig {
         }
 
         @Override
-        public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
-            super.renderWidget(context, mouseX, mouseY, delta);
+        public void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+            super.extractWidgetRenderState(context, mouseX, mouseY, delta);
             if (item != null) {
                 Identifier r = Identifier.tryParse(item);
                 if (r != null) {
                     var optStack = (idMode == 0) ? BuiltInRegistries.ITEM.get(r).map(item -> item.value().getDefaultInstance()) : BuiltInRegistries.BLOCK.get(r).map(block -> block.value().asItem().getDefaultInstance());
-                    optStack.ifPresent(stack -> context.renderItem(stack, this.getX() + (this.width - 16) / 2, this.getY() + (this.height - 16) / 2));
+                    optStack.ifPresent(stack -> context.item(stack, this.getX() + (this.width - 16) / 2, this.getY() + (this.height - 16) / 2));
                 }
             }
         }

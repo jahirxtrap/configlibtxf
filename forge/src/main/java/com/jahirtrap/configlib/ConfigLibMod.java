@@ -13,7 +13,7 @@ public class ConfigLibMod {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         System.setProperty("java.awt.headless", "false");
-        ModList.get().forEachModContainer((modid, container) -> {
+        ModList.forEachModContainer((modid, container) -> {
             if (TXFConfig.configClass.containsKey(modid)) {
                 container.registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () ->
                         new ConfigScreenHandler.ConfigScreenFactory((client, parent) -> TXFConfigClient.getScreen(parent, modid)));
