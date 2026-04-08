@@ -35,4 +35,62 @@ subprojects {
     tasks.withType(GenerateModuleMetadata).configureEach {
         enabled = false
     }
+
+    if (project.name != 'common') {
+        apply plugin: 'maven-publish'
+        apply plugin: 'signing'
+
+        java {
+            withSourcesJar()
+            withJavadocJar()
+        }
+
+        publishing {
+            publications {
+                mavenJava(MavenPublication) {
+                    groupId = 'io.github.jahirxtrap'
+                    artifactId = mod_id
+                    from components.java
+
+                    pom {
+                        name = mod_name
+                        description = mod_description
+                        url = mod_url
+                        licenses {
+                            license {
+                                name = 'MIT License'
+                                url = 'https://opensource.org/licenses/MIT'
+                            }
+                        }
+                        developers {
+                            developer {
+                                id = 'jahirxtrap'
+                                name = 'jahirtrap'
+                            }
+                        }
+                        scm {
+                            connection = 'scm:git:git://github.com/jahirxtrap/configlibtxf.git'
+                            developerConnection = 'scm:git:ssh://github.com/jahirxtrap/configlibtxf.git'
+                            url = mod_url
+                        }
+                    }
+                }
+            }
+            repositories {
+                maven {
+                    name = 'staging'
+                    url = "${rootProject.layout.buildDirectory.get()}/staging-deploy"
+                }
+            }
+        }
+
+        signing {
+            def signingKey = System.getenv("GPG_PRIVATE_KEY")
+            def signingPassword = System.getenv("GPG_PASSPHRASE")
+            if (signingKey) {
+                useInMemoryPgpKeys(signingKey, signingPassword)
+                sign publishing.publications.mavenJava
+            }
+        }
+    }
 }

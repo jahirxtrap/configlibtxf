@@ -1,24 +1,22 @@
 <h2><strong>ConfigLib TXF mod</strong></h2>
-<p><a href="https://jitpack.io/#jahirxtrap/configlibtxf"><img src="https://jitpack.io/v/jahirxtrap/configlibtxf.svg?style=flat" alt="JitPack version" /></a></p>
+<p><a href="https://central.sonatype.com/artifact/io.github.jahirxtrap/configlibtxf"><img src="https://img.shields.io/maven-central/v/io.github.jahirxtrap/configlibtxf?style=flat" alt="Maven Central" /></a></p>
 
 Config library for minecraft mods
 
-### Dependency
-
-Add JitPack repository and the dependency for your loader:
+### Dependency (Maven Central)
 
 ```groovy
 repositories {
-    maven { url 'https://jitpack.io' }
+    mavenCentral()
 }
 
 dependencies {
     // Fabric
-    implementation 'com.github.jahirxtrap.configlibtxf:fabric:TAG'
+    implementation 'io.github.jahirxtrap:configlibtxf:TAG-fabric'
     // Forge
-    implementation 'com.github.jahirxtrap.configlibtxf:forge:TAG'
+    implementation 'io.github.jahirxtrap:configlibtxf:TAG-forge'
     // NeoForge
-    implementation 'com.github.jahirxtrap.configlibtxf:neoforge:TAG'
+    implementation 'io.github.jahirxtrap:configlibtxf:TAG-neoforge'
 }
 ```
 
