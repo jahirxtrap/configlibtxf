@@ -18,6 +18,7 @@ import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.Identifier;
@@ -524,7 +525,7 @@ public abstract class TXFConfig {
             if (item != null) {
                 Identifier r = Identifier.tryParse(item);
                 if (r != null) {
-                    var optStack = (idMode == 0) ? BuiltInRegistries.ITEM.get(r).map(item -> item.value().getDefaultInstance()) : BuiltInRegistries.BLOCK.get(r).map(block -> block.value().asItem().getDefaultInstance());
+                    var optStack = (idMode == 0) ? BuiltInRegistries.ITEM.get(r).filter(Holder::areComponentsBound).map(item -> item.value().getDefaultInstance()) : BuiltInRegistries.BLOCK.get(r).filter(Holder::areComponentsBound).map(block -> block.value().asItem().getDefaultInstance());
                     optStack.ifPresent(stack -> context.item(stack, this.getX() + (this.width - 16) / 2, this.getY() + (this.height - 16) / 2));
                 }
             }

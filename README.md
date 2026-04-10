@@ -20,7 +20,7 @@ dependencies {
 }
 ```
 
-Replace `TAG` with the version you want (e.g. `14.2.8`).
+Replace `TAG` with the version you want (e.g. `14.2.10`).
 
 ### Usage
 
