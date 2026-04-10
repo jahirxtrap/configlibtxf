@@ -1,1 +1,4 @@
-- Update to 26.1.2
+- Added JSON5 config format with auto-generated comments
+- Added custom comments via `comment` parameter
+- Added expandable list editor UI
+- Added legacy JSON migration support

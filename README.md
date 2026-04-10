@@ -20,7 +20,7 @@ dependencies {
 }
 ```
 
-Replace `TAG` with the version you want (e.g. `14.2.10`).
+Replace `TAG` with the version you want (e.g. `14.3.0`).
 
 ### Usage
 
@@ -28,5 +28,3 @@ Replace `TAG` with the version you want (e.g. `14.2.10`).
 // initialize config
 TXFConfig.init(MODID, ModConfig.class);
 ```
-
-forked from <a href="https://github.com/TeamMidnightDust/MidnightLib" target="_blank">TeamMidnightDust/MidnightLib</a>
