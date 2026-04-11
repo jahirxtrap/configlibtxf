@@ -25,6 +25,7 @@ import java.util.Map;
 
 public class TXFConfigServer {
     private static final Map<String, Map<String, Object>> cachedDefaults = new HashMap<>();
+    private static final Map<String, Map<String, Object>> cachedServerValues = new HashMap<>();
     private static boolean registered = false;
     private static boolean eventsRegistered = false;
 
@@ -104,6 +105,30 @@ public class TXFConfigServer {
             }
         } catch (Exception ignored) {
         }
+        cacheServerValues(modid, config);
+    }
+
+    public static void reapply(String modid) {
+        var serverVals = cachedServerValues.get(modid);
+        if (serverVals == null) return;
+        Class<? extends TXFConfig> config = TXFConfig.configClass.get(modid);
+        if (config == null) return;
+        for (var entry : serverVals.entrySet()) {
+            try {
+                Field field = config.getField(entry.getKey());
+                field.set(null, entry.getValue());
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    public static boolean isActive(String modid) {
+        return cachedServerValues.containsKey(modid);
+    }
+
+    public static Object getServerValue(String modid, String fieldName) {
+        var vals = cachedServerValues.get(modid);
+        return vals != null ? vals.get(fieldName) : null;
     }
 
     public static void reset(String modid) {
@@ -122,6 +147,20 @@ public class TXFConfigServer {
 
     public static void resetAll() {
         for (String modid : cachedDefaults.keySet()) reset(modid);
+        cachedServerValues.clear();
+    }
+
+    private static void cacheServerValues(String modid, Class<? extends TXFConfig> config) {
+        Map<String, Object> serverVals = new HashMap<>();
+        try {
+            for (Field field : config.getFields()) {
+                if (!field.isAnnotationPresent(TXFConfig.Entry.class)) continue;
+                if (!field.getAnnotation(TXFConfig.Entry.class).syncServer()) continue;
+                serverVals.put(field.getName(), field.get(null));
+            }
+        } catch (Exception ignored) {
+        }
+        cachedServerValues.put(modid, serverVals);
     }
 
     private static void cacheDefaults(String modid, Class<? extends TXFConfig> config) {

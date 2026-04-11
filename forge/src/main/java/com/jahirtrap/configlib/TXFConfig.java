@@ -18,11 +18,12 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class TXFConfig {
-    public static final Map<String, Class<? extends TXFConfig>> configClass = new HashMap<>();
+    public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
     public static Path path;
-    private static final Map<String, Map<String, Object>> defaultValues = new HashMap<>();
+    private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
 
     public static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
@@ -39,7 +40,8 @@ public abstract class TXFConfig {
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
         path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json5");
-        Json5Helper.migrateLegacy(path);
+        Path configPath = path;
+        Json5Helper.migrateLegacy(configPath);
         configClass.put(modid, config);
         cacheDefaults(modid, config);
 
@@ -48,7 +50,7 @@ public abstract class TXFConfig {
                 TXFConfigClient.initClient(modid, field);
         }
         try {
-            String content = Files.readString(path);
+            String content = Files.readString(configPath);
             JsonObject json = Json5Helper.parse(content);
             gson.fromJson(json, config);
             write(modid);
@@ -85,13 +87,13 @@ public abstract class TXFConfig {
 
     public void writeChanges(String modid) {
         try {
-            path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json5");
-            if (!Files.exists(path)) Files.createFile(path);
+            Path configPath = FMLPaths.CONFIGDIR.get().resolve(modid + ".json5");
+            if (!Files.exists(configPath)) Files.createFile(configPath);
             JsonObject original = gson.toJsonTree(getClass(modid)).getAsJsonObject();
             JsonObject json = orderByCategory(modid, original);
             Map<String, String> comments = buildComments(modid);
             Map<String, String> categories = buildCategories(modid);
-            Files.writeString(path, Json5Helper.serialize(json, comments, categories));
+            Files.writeString(configPath, Json5Helper.serialize(json, comments, categories));
         } catch (Exception e) {
             e.fillInStackTrace();
         }

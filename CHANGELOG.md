@@ -1,1 +1,3 @@
-- Added automatic server config sync via `syncServer` parameter
+- Added sync-locked UI for server-synced fields in multiplayer
+- Fixed config files not being created on parallel mod loading
+- Fixed local config being overwritten with server values

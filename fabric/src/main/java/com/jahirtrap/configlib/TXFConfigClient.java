@@ -256,6 +256,15 @@ public class TXFConfigClient extends TXFConfig {
         public Button done;
         public double scrollProgress = 0d;
 
+        private boolean isOnMultiplayerServer() {
+            return minecraft != null && minecraft.getConnection() != null && !minecraft.isSingleplayer();
+        }
+
+        private boolean isSyncLocked(EntryInfo info) {
+            return isOnMultiplayerServer() && TXFConfigServer.isActive(modid)
+                    && info.field.isAnnotationPresent(Entry.class) && info.field.getAnnotation(Entry.class).syncServer();
+        }
+
         // Real Time config update //
         @Override
         public void tick() {
@@ -269,6 +278,7 @@ public class TXFConfigClient extends TXFConfig {
             scrollProgress = list.scrollAmount();
             for (EntryInfo info : entries)
                 try {
+                    if (isSyncLocked(info)) continue;
                     info.field.set(null, info.value);
                 } catch (IllegalAccessException ignored) {
                 }
@@ -282,21 +292,30 @@ public class TXFConfigClient extends TXFConfig {
                     if (entry.buttons.getFirst() instanceof AbstractWidget widget)
                         if (widget.isFocused() || widget.isHovered()) widget.setTooltip(getTooltip(entry.info));
                     if (entry.buttons.get(1) instanceof Button button)
-                        button.active = !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
+                        button.active = !isSyncLocked(entry.info) && !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
                 }
             }
         }
 
         public void loadValues() {
+            boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
             try {
                 gson.fromJson(Json5Helper.parse(Files.readString(path)), configClass.get(modid));
             } catch (Exception e) {
-                write(modid);
+                if (!syncActive) write(modid);
             }
-
             for (EntryInfo info : entries) {
                 if (info.field.isAnnotationPresent(Entry.class))
                     try {
+                        if (syncActive && info.field.getAnnotation(Entry.class).syncServer()) {
+                            Object serverVal = TXFConfigServer.getServerValue(modid, info.field.getName());
+                            if (serverVal != null) {
+                                info.field.set(null, serverVal);
+                                info.value = serverVal;
+                                info.tempValue = info.toTemporaryValue();
+                                continue;
+                            }
+                        }
                         info.value = info.field.get(null);
                         info.tempValue = info.toTemporaryValue();
                     } catch (IllegalAccessException ignored) {
@@ -339,12 +358,17 @@ public class TXFConfigClient extends TXFConfig {
 
             this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
             done = this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, (button) -> {
+                boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
                 for (EntryInfo info : entries)
                     if (info.modid.equals(modid)) try {
+                        if (syncActive && info.field.isAnnotationPresent(Entry.class) && info.field.getAnnotation(Entry.class).syncServer())
+                            continue;
                         info.field.set(null, info.value);
                     } catch (IllegalAccessException ignored) {
                     }
+                if (syncActive) TXFConfigServer.reset(modid);
                 write(modid);
+                if (syncActive) TXFConfigServer.reapply(modid);
                 cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
@@ -442,8 +466,14 @@ public class TXFConfigClient extends TXFConfig {
                             info.actionButton = explorerButton;
                         }
                         List<AbstractWidget> widgets = Lists.newArrayList(widget, resetButton);
+                        boolean locked = isSyncLocked(info);
+                        if (locked) {
+                            widget.active = false;
+                            if (widget instanceof EditBox editBox) editBox.setEditable(false);
+                            resetButton.active = false;
+                        }
                         if (info.actionButton != null) {
-                            if (Util.getPlatform() == Util.OS.OSX) info.actionButton.active = false;
+                            if (Util.getPlatform() == Util.OS.OSX || locked) info.actionButton.active = false;
                             widget.setWidth(widget.getWidth() - 22);
                             widget.setX(widget.getX() + 22);
                             widgets.add(info.actionButton);
@@ -475,6 +505,11 @@ public class TXFConfigClient extends TXFConfig {
                                     list.clear();
                                     fillList();
                                 }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                if (locked) {
+                                    listField.active = false;
+                                    listField.setEditable(false);
+                                    removeButton.active = false;
+                                }
                                 this.list.addButton(Lists.newArrayList(listField, removeButton), Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
                             }
                             // Add button
@@ -485,7 +520,8 @@ public class TXFConfigClient extends TXFConfig {
                                 list.clear();
                                 fillList();
                             }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
-                            this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
+                            if (!locked)
+                                this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
                         }
                     } else this.list.addButton(List.of(), name, info);
                 }
