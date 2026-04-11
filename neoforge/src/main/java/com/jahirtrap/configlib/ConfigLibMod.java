@@ -1,6 +1,7 @@
 package com.jahirtrap.configlib;
 
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -11,6 +12,10 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 @Mod("configlibtxf")
 @EventBusSubscriber(modid = "configlibtxf", value = Dist.CLIENT)
 public class ConfigLibMod {
+    public ConfigLibMod(IEventBus bus) {
+        TXFConfigServer.register(bus);
+    }
+
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         System.setProperty("java.awt.headless", "false");

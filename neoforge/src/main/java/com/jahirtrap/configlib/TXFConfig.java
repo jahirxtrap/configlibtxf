@@ -55,6 +55,9 @@ public abstract class TXFConfig {
         } catch (Exception e) {
             write(modid);
         }
+
+        if (TXFConfigServer.hasSyncFields(modid))
+            TXFConfigServer.registerEvents();
     }
 
     private static void cacheDefaults(String modid, Class<? extends TXFConfig> config) {
@@ -180,6 +183,8 @@ public abstract class TXFConfig {
         int precision() default 100;
 
         String category() default "default";
+
+        boolean syncServer() default false;
     }
 
     @Retention(RetentionPolicy.RUNTIME)
