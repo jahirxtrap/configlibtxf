@@ -16,7 +16,7 @@ public class ConfigLibMod {
         ModList.get().forEachModContainer((modid, container) -> {
             if (TXFConfig.configClass.containsKey(modid)) {
                 container.registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () ->
-                        new ConfigScreenHandler.ConfigScreenFactory((client, parent) -> TXFConfig.getScreen(parent, modid)));
+                        new ConfigScreenHandler.ConfigScreenFactory((client, parent) -> TXFConfigClient.getScreen(parent, modid)));
             }
         });
     }

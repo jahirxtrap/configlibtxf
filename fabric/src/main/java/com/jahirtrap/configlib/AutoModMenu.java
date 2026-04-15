@@ -11,7 +11,7 @@ public class AutoModMenu implements ModMenuApi {
     public Map<String, ConfigScreenFactory<?>> getProvidedConfigScreenFactories() {
         System.setProperty("java.awt.headless", "false");
         HashMap<String, ConfigScreenFactory<?>> map = new HashMap<>();
-        TXFConfig.configClass.forEach((modid, cClass) -> map.put(modid, parent -> TXFConfig.getScreen(parent, modid)));
+        TXFConfig.configClass.forEach((modid, cClass) -> map.put(modid, parent -> TXFConfigClient.getScreen(parent, modid)));
         return map;
     }
 }
