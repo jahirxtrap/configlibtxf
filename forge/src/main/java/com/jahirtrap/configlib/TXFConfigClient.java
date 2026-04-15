@@ -188,6 +188,9 @@ public class TXFConfigClient extends TXFConfig {
                 t.setTooltip(getTooltip(info));
             }
 
+            if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty())
+                inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
+
             info.tempValue = s;
             t.setTextColor(inLimits ? 0xFFFFFFFF : 0xFFFF7777);
             info.inLimits = inLimits;
@@ -506,12 +509,19 @@ public class TXFConfigClient extends TXFConfig {
                                     list.clear();
                                     fillList();
                                 }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                List<AbstractWidget> listWidgets = Lists.newArrayList(listField, removeButton);
+                                if (e.idMode() >= 0) {
+                                    ItemField listItemField = new ItemField(font, width - 185, 0, 20, 20, e.idMode());
+                                    listField.setWidth(listField.getWidth() - 22);
+                                    listField.setX(listField.getX() + 22);
+                                    listWidgets.add(listItemField);
+                                }
                                 if (locked) {
                                     listField.active = false;
                                     listField.setEditable(false);
                                     removeButton.active = false;
                                 }
-                                this.list.addButton(Lists.newArrayList(listField, removeButton), Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
+                                this.list.addButton(listWidgets, Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
                             }
                             // Add button
                             Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
@@ -539,7 +549,7 @@ public class TXFConfigClient extends TXFConfig {
             if (this.list != null) for (ButtonEntry entry : this.list.children())
                 if (entry.buttons != null && entry.buttons.size() > 2)
                     if (entry.buttons.get(2) instanceof ItemField widget && widget.dynamic)
-                        widget.setItem(entry.info.tempValue);
+                        widget.setItem(entry.info != null ? entry.info.tempValue : (entry.buttons.getFirst() instanceof EditBox eb ? eb.getValue() : ""));
         }
     }
 

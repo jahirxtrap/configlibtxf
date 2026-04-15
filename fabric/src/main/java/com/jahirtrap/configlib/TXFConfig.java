@@ -20,8 +20,11 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jetbrains.annotations.Nullable;
+
 public abstract class TXFConfig {
     public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, String> classToModid = new ConcurrentHashMap<>();
     public static Path path;
     private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
 
@@ -43,6 +46,7 @@ public abstract class TXFConfig {
         Path configPath = path;
         Json5Helper.migrateLegacy(configPath);
         configClass.put(modid, config);
+        classToModid.put(config, modid);
         cacheDefaults(modid, config);
 
         for (Field field : config.getFields()) {
@@ -53,6 +57,7 @@ public abstract class TXFConfig {
             String content = Files.readString(configPath);
             JsonObject json = Json5Helper.parse(content);
             gson.fromJson(json, config);
+            validateFields(modid, config);
             write(modid);
         } catch (Exception e) {
             write(modid);
@@ -60,6 +65,24 @@ public abstract class TXFConfig {
 
         if (TXFConfigServer.hasSyncFields(modid))
             TXFConfigServer.register();
+    }
+
+    private static void validateFields(String modid, Class<? extends TXFConfig> config) {
+        var defaults = defaultValues.get(modid);
+        if (defaults == null) return;
+        try {
+            for (Field field : config.getFields()) {
+                if (!field.isAnnotationPresent(Entry.class)) continue;
+                Entry e = field.getAnnotation(Entry.class);
+                if (e.regex().isEmpty()) continue;
+                Object val = field.get(null);
+                if (val instanceof String s && !s.isEmpty() && !s.matches(e.regex())) {
+                    Object def = defaults.get(field.getName());
+                    if (def != null) field.set(null, def);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private static void cacheDefaults(String modid, Class<? extends TXFConfig> config) {
@@ -83,6 +106,37 @@ public abstract class TXFConfig {
 
     public static void write(String modid) {
         getClass(modid).writeChanges(modid);
+    }
+
+    @Nullable
+    public static EntryMeta get(Class<? extends TXFConfig> config, String field) {
+        String modid = classToModid.get(config);
+        return modid != null ? get(modid, field) : null;
+    }
+
+    @Nullable
+    public static EntryMeta get(String modid, String field) {
+        Class<? extends TXFConfig> config = configClass.get(modid);
+        if (config == null) return null;
+        try {
+            Field f = config.getField(field);
+            if (!f.isAnnotationPresent(Entry.class)) return null;
+            Entry e = f.getAnnotation(Entry.class);
+            var defaults = defaultValues.get(modid);
+            Object def = defaults != null ? defaults.get(field) : null;
+            Object val = f.get(null);
+            return new EntryMeta(val, def, e.min(), e.max(), e.name(), e.comment(), e.regex(), e.category(), e.idMode(), e.itemDisplay(), e.isColor(), e.isSlider(), e.precision(), e.syncServer());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public record EntryMeta(Object value, Object defaultValue, double min, double max, String name, String comment,
+                            String regex, String category, int idMode, String itemDisplay, boolean isColor,
+                            boolean isSlider, int precision, boolean syncServer) {
+        public boolean validate(String val) {
+            return regex.isEmpty() || val.isEmpty() || val.matches(regex);
+        }
     }
 
     public void writeChanges(String modid) {
@@ -187,6 +241,8 @@ public abstract class TXFConfig {
         String category() default "default";
 
         boolean syncServer() default false;
+
+        String regex() default "";
     }
 
     @Retention(RetentionPolicy.RUNTIME)
