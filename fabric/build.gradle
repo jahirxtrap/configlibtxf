@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'fabric-loom' version '1.7-SNAPSHOT'
+    id 'me.modmuss50.mod-publish-plugin' version '0.6.3'
 }
 
 version = "${version}-fabric"
@@ -21,7 +22,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
     compileOnly project(":common")
 
-    modImplementation "maven.modrinth:modmenu:${modmenu_version}"
+    modCompileOnly "maven.modrinth:modmenu:${modmenu_version}"
 }
 
 loom {
@@ -64,3 +65,19 @@ processResources {
 }
 
 jar.finalizedBy('remapJar')
+
+publishMods {
+    file = tasks.remapJar.archiveFile
+    displayName = rootProject.version
+    type = STABLE
+    changelog = rootProject.file("CHANGELOG.md").text
+
+    github {
+        accessToken = System.getenv("GITHUB_TOKEN")
+        repository = "jahirxtrap/configlibtxf"
+        commitish = "master"
+        tagName = rootProject.version
+        additionalFiles.from(project(":forge").tasks.jar.archiveFile)
+        additionalFiles.from(project(":neoforge").tasks.jar.archiveFile)
+    }
+}

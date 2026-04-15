@@ -7,6 +7,10 @@ plugins {
 version = "${version}-neoforge"
 base.archivesName = mod_id
 
+dependencies {
+    compileOnly project(":common")
+}
+
 neoForge {
     version = neoforge_version
 
@@ -36,10 +40,6 @@ neoForge {
 }
 
 sourceSets.main.resources.srcDir 'src/generated/resources'
-
-dependencies {
-    compileOnly project(":common")
-}
 
 def resourceTargets = ['META-INF/neoforge.mods.toml', 'pack.mcmeta']
 def replaceProperties = [

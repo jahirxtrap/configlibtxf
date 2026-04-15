@@ -1,6 +1,9 @@
 package com.jahirtrap.configlib;
 
 import com.google.common.collect.Lists;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -22,10 +25,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -43,7 +42,7 @@ import java.util.regex.Pattern;
 
 import static net.minecraft.client.Minecraft.ON_OSX;
 
-@OnlyIn(Dist.CLIENT)
+@Environment(EnvType.CLIENT)
 @SuppressWarnings("unchecked")
 public class TXFConfigClient extends TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
@@ -58,10 +57,10 @@ public class TXFConfigClient extends TXFConfig {
         int width, listIndex;
         boolean centered, listExpanded;
         Object defaultValue, value, function;
-        String modid, tempValue;   // The value visible in the config screen
+        String modid, tempValue;
         boolean inLimits = true;
         Component name, error;
-        AbstractWidget actionButton; // color picker button / explorer button
+        AbstractWidget actionButton;
         Tab tab;
 
         public void setValue(Object value) {
@@ -162,7 +161,7 @@ public class TXFConfigClient extends TXFConfig {
     }
 
     public static String getModName(String modId) {
-        return ModList.get().getModContainerById(modId).map(container -> container.getModInfo().getDisplayName()).orElse(modId);
+        return FabricLoader.getInstance().getModContainer(modId).map(container -> container.getMetadata().getName()).orElse(modId);
     }
 
     private static void textField(EntryInfo info, Function<String, Number> f, Pattern pattern, double min, double max, boolean cast) {
@@ -209,12 +208,12 @@ public class TXFConfigClient extends TXFConfig {
         };
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static Screen getScreen(Screen parent, String modid) {
         return new ConfigScreen(parent, modid);
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static class ConfigScreen extends Screen {
         protected ConfigScreen(Screen parent, String modid) {
             super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
@@ -265,7 +264,6 @@ public class TXFConfigClient extends TXFConfig {
                     && info.field.isAnnotationPresent(Entry.class) && info.field.getAnnotation(Entry.class).syncServer();
         }
 
-        // Real Time config update //
         @Override
         public void tick() {
             super.tick();
@@ -372,7 +370,7 @@ public class TXFConfigClient extends TXFConfig {
                 cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
-            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FMLPaths.CONFIGDIR.get().resolve(modid + ".json5").toFile()), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
+            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FabricLoader.getInstance().getConfigDir().resolve(modid + ".json5").toFile()), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -399,7 +397,7 @@ public class TXFConfigClient extends TXFConfig {
                         AbstractWidget widget;
                         Entry e = info.field.getAnnotation(Entry.class);
 
-                        if (info.function instanceof Map.Entry) { // Enums & booleans
+                        if (info.function instanceof Map.Entry) {
                             var values = (Map.Entry<Button.OnPress, Function<Object, Component>>) info.function;
                             widget = Button.builder(values.getValue().apply(info.value), values.getKey()).bounds(width - 185, 0, 150, 20).tooltip(getTooltip(info)).build();
                         } else if (e.isSlider())
@@ -483,7 +481,6 @@ public class TXFConfigClient extends TXFConfig {
                         }
                         this.list.addButton(widgets, name, info);
 
-                        // Expanded list entries
                         if (info.field.getType() == List.class && info.listExpanded) {
                             var listValues = new ArrayList<>((List<?>) info.value);
                             for (int idx = 0; idx < listValues.size(); idx++) {
@@ -512,7 +509,6 @@ public class TXFConfigClient extends TXFConfig {
                                 }
                                 this.list.addButton(Lists.newArrayList(listField, removeButton), Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
                             }
-                            // Add button
                             Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
                                 var currentList = new ArrayList<>((List<Object>) info.value);
                                 currentList.add("");
@@ -542,7 +538,7 @@ public class TXFConfigClient extends TXFConfig {
         }
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static class ConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
         public ConfigListWidget(Minecraft client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
