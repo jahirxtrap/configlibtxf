@@ -76,7 +76,7 @@ publishMods {
     github {
         accessToken = System.getenv("GITHUB_TOKEN")
         repository = "jahirxtrap/configlibtxf"
-        commitish = "master"
+        commitish = 'git branch --show-current'.execute().text.trim()
         tagName = rootProject.version
         additionalFiles.from(project(":forge").tasks.jar.archiveFile)
         additionalFiles.from(project(":neoforge").tasks.jar.archiveFile)
