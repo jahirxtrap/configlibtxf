@@ -1,3 +1,1 @@
-- Added sync-locked UI for server-synced fields in multiplayer
-- Fixed config files not being created on parallel mod loading
-- Fixed local config being overwritten with server values
+-
