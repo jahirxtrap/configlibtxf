@@ -2,6 +2,9 @@ package com.jahirtrap.configlib;
 
 import com.google.common.collect.Lists;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -24,10 +27,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
-import net.neoforged.fml.ModList;
-import net.neoforged.fml.loading.FMLPaths;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -43,7 +42,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-@OnlyIn(Dist.CLIENT)
+@Environment(EnvType.CLIENT)
 @SuppressWarnings("unchecked")
 public class TXFConfigClient extends TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
@@ -162,7 +161,7 @@ public class TXFConfigClient extends TXFConfig {
     }
 
     public static String getModName(String modId) {
-        return ModList.get().getModContainerById(modId).map(container -> container.getModInfo().getDisplayName()).orElse(modId);
+        return FabricLoader.getInstance().getModContainer(modId).map(container -> container.getMetadata().getName()).orElse(modId);
     }
 
     private static void textField(EntryInfo info, Function<String, Number> f, Pattern pattern, double min, double max, boolean cast) {
@@ -209,12 +208,12 @@ public class TXFConfigClient extends TXFConfig {
         };
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static Screen getScreen(Screen parent, String modid) {
         return new ConfigScreen(parent, modid);
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static class ConfigScreen extends Screen {
         protected ConfigScreen(Screen parent, String modid) {
             super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
@@ -372,7 +371,7 @@ public class TXFConfigClient extends TXFConfig {
                 cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
-            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FMLPaths.CONFIGDIR.get().resolve(modid + ".json5").toFile()), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
+            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FabricLoader.getInstance().getConfigDir().resolve(modid + ".json5").toFile()), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -542,7 +541,7 @@ public class TXFConfigClient extends TXFConfig {
         }
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public static class ConfigListWidget extends ContainerObjectSelectionList<ButtonEntry> {
         public ConfigListWidget(Minecraft client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);

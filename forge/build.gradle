@@ -7,6 +7,11 @@ plugins {
 version = "${version}-forge"
 base.archivesName = mod_id
 
+dependencies {
+    minecraft "net.minecraftforge:forge:${forge_version}"
+    compileOnly project(":common")
+}
+
 minecraft {
     mappings channel: 'official', version: minecraft_version
 
@@ -59,11 +64,6 @@ minecraft {
 }
 
 sourceSets.main.resources.srcDir 'src/generated/resources'
-
-dependencies {
-    minecraft "net.minecraftforge:forge:${forge_version}"
-    compileOnly project(":common")
-}
 
 def resourceTargets = ['META-INF/mods.toml', 'pack.mcmeta']
 def replaceProperties = [
