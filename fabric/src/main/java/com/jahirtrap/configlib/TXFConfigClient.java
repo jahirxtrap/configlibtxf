@@ -79,12 +79,7 @@ public class TXFConfigClient extends TXFConfig {
         }
 
         public String toTemporaryValue() {
-            if (this.field.getType() != List.class) return this.value.toString();
-            else try {
-                return ((List<?>) this.value).get(this.listIndex).toString();
-            } catch (Exception ignored) {
-                return "";
-            }
+            return this.value != null ? this.value.toString() : "";
         }
 
         public String toFormattedName() {
@@ -233,6 +228,7 @@ public class TXFConfigClient extends TXFConfig {
         private final Screen parent;
         private final String modid;
         private final List<String> keys;
+        private ConfigListWidget list;
 
         protected HubScreen(Screen parent, String modid, List<String> keys) {
             super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
@@ -244,19 +240,39 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void init() {
             super.init();
-            int y = this.height / 2 - (keys.size() * 24) / 2;
+            var tabNavigation = TabNavigationBar.builder(new TabManager(a -> {}, a -> {}), this.width)
+                    .addTabs(new GridLayoutTab(this.title)).build();
+            tabNavigation.selectTab(0, false);
+            tabNavigation.arrangeElements();
+            this.addRenderableWidget(tabNavigation);
+
+            this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
             for (String key : keys) {
                 String suffix = key.contains(":") ? key.substring(key.indexOf(':') + 1) : "default";
                 String translationKey = modid + ".config.file." + suffix;
-                Component name = I18n.exists(translationKey) ? Component.translatable(translationKey) :
-                        Component.literal(suffix.substring(0, 1).toUpperCase() + suffix.substring(1));
-                this.addRenderableWidget(Button.builder(name, button ->
+                String displayName = I18n.exists(translationKey) ? I18n.get(translationKey) :
+                        suffix.substring(0, 1).toUpperCase() + suffix.substring(1);
+                String fileName = (suffix.equals("default") ? modid : modid + "-" + suffix) + ".json5";
+                Button configButton = Button.builder(Component.literal(displayName + " ").append(Component.literal("(" + fileName + ")").withStyle(ChatFormatting.GRAY)), b ->
                         Objects.requireNonNull(minecraft).setScreen(new ConfigScreen(this, key))
-                ).bounds(this.width / 2 - 100, y, 200, 20).build());
-                y += 24;
+                ).bounds(this.width / 2 - 150, 0, 300, 20).build();
+                Button editorButton = SpriteIconButton.builder(Component.empty(), b -> {
+                    Path p = configPaths.get(key);
+                    if (p != null) Util.getPlatform().openFile(p.toFile());
+                }, true).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build();
+                editorButton.setPosition(this.width / 2 - 175, 0);
+                list.addButton(Lists.newArrayList(configButton, editorButton), Component.empty(), null);
             }
+            this.addWidget(this.list);
             this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
                     .bounds(this.width / 2 - 100, this.height - 27, 200, 20).build());
+        }
+
+        @Override
+        public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+            super.extractRenderState(context, mouseX, mouseY, delta);
+            extractMenuBackgroundTexture(context, MENU_BACKGROUND, 0, 24, 0, 0, this.width, 7);
+            this.list.extractRenderState(context, mouseX, mouseY, delta);
         }
 
         @Override
@@ -387,7 +403,8 @@ public class TXFConfigClient extends TXFConfig {
         public void onClose() {
             loadValues();
             cleanup();
-            Objects.requireNonNull(minecraft).setScreen(parent);
+            Screen target = (parent instanceof HubScreen hub) ? hub.parent : parent;
+            Objects.requireNonNull(minecraft).setScreen(target);
         }
 
         private void cleanup() {
@@ -410,7 +427,15 @@ public class TXFConfigClient extends TXFConfig {
             tabNavigation.arrangeElements();
             if (!tabs.isEmpty()) this.addRenderableWidget(tabNavigation);
 
-            this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
+            boolean hasHub = parent instanceof HubScreen;
+            if (hasHub) {
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_BACK, button ->
+                        Objects.requireNonNull(minecraft).setScreen(parent)
+                ).bounds(this.width / 2 - 156, this.height - 26, 100, 20).build());
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 52, this.height - 26, 100, 20).build());
+            } else {
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
+            }
             done = this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, (button) -> {
                 boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
                 for (EntryInfo info : entries)
@@ -424,8 +449,9 @@ public class TXFConfigClient extends TXFConfig {
                 write(modid);
                 if (syncActive) TXFConfigServer.reapply(modid);
                 cleanup();
-                Objects.requireNonNull(minecraft).setScreen(parent);
-            }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
+                Screen target = hasHub ? ((HubScreen) parent).parent : parent;
+                Objects.requireNonNull(minecraft).setScreen(target);
+            }).bounds(hasHub ? this.width / 2 + 52 : this.width / 2 + 4, this.height - 26, hasHub ? 100 : 150, 20).build());
             Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
                 Path p = configPaths.get(modid);
                 if (p != null) Util.getPlatform().openFile(p.toFile());
@@ -555,12 +581,14 @@ public class TXFConfigClient extends TXFConfig {
                                     if (index < currentList.size()) {
                                         currentList.set(index, s);
                                         info.value = currentList;
+                                        info.tempValue = info.toTemporaryValue();
                                     }
                                 });
                                 Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
                                     if (index < currentList.size()) currentList.remove(index);
                                     info.value = currentList;
+                                    info.tempValue = info.toTemporaryValue();
                                     list.clear();
                                     fillList();
                                 }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
@@ -583,6 +611,7 @@ public class TXFConfigClient extends TXFConfig {
                                 var currentList = new ArrayList<>((List<Object>) info.value);
                                 currentList.add("");
                                 info.value = currentList;
+                                info.tempValue = info.toTemporaryValue();
                                 list.clear();
                                 fillList();
                             }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
