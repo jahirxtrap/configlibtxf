@@ -44,12 +44,15 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static com.jahirtrap.configlib.ConfigLibMod.MODID;
+
 @Environment(EnvType.CLIENT)
 @SuppressWarnings("unchecked")
 public class TXFConfigClient extends TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
     private static final Pattern DECIMAL_ONLY = Pattern.compile("-?(\\d+\\.?\\d*|\\d*\\.?\\d+|\\.)");
     private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("[#0-9a-fA-F]*");
+    private static final Pattern IDENTIFIER_ONLY = Pattern.compile("[a-z0-9_.:/-]*");
 
     private static final List<EntryInfo> entries = new CopyOnWriteArrayList<>();
 
@@ -121,7 +124,7 @@ public class TXFConfigClient extends TXFConfig {
             else if (info.dataType == double.class)
                 textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
             else if (info.dataType == String.class || info.dataType == List.class)
-                textField(info, String::length, null, Math.min(e.min(), 0), Math.max(e.max(), 1), true);
+                textField(info, String::length, null, e.min() == Double.MIN_NORMAL ? 0 : e.min(), e.max() == Double.MAX_VALUE ? Double.MAX_VALUE : e.max(), true);
             else if (info.dataType == boolean.class) {
                 Function<Object, Component> func = value -> Component.translatable((Boolean) value ? "gui.yes" : "gui.no").withStyle((Boolean) value ? ChatFormatting.GREEN : ChatFormatting.RED);
                 info.function = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
@@ -168,48 +171,52 @@ public class TXFConfigClient extends TXFConfig {
 
     private static void textField(EntryInfo info, Function<String, Number> f, Pattern pattern, double min, double max, boolean cast) {
         boolean isNumber = pattern != null;
-        info.function = (BiFunction<EditBox, Button, Predicate<String>>) (t, b) -> s -> {
-            s = s.trim();
-            if (!(s.isEmpty() || !isNumber || pattern.matcher(s).matches())) return false;
-
-            Number value = 0;
-            boolean inLimits = false;
-            info.error = null;
-            if (!(isNumber && s.isEmpty()) && !s.equals("-") && !s.equals(".")) {
-                try {
-                    value = f.apply(s);
-                } catch (NumberFormatException e) {
-                    return false;
+        info.function = (BiFunction<EditBox, Button, Predicate<String>>) (t, b) -> {
+            if (t instanceof FilteredField ft) {
+                if (isNumber) ft.setCharFilter(c -> pattern.matcher(c).matches());
+                else if (info.field.getAnnotation(Entry.class).isColor())
+                    ft.setCharFilter(c -> HEXADECIMAL_ONLY.matcher(c).matches());
+                else if (info.field.getAnnotation(Entry.class).idMode() >= 0)
+                    ft.setCharFilter(c -> IDENTIFIER_ONLY.matcher(c).matches());
+            }
+            return s -> {
+                s = s.trim();
+                Number value = 0;
+                boolean inLimits = false;
+                info.error = null;
+                if (!(isNumber && s.isEmpty()) && !s.equals("-") && !s.equals(".")) {
+                    try {
+                        value = f.apply(s);
+                    } catch (NumberFormatException e) {
+                        return false;
+                    }
+                    inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
+                    info.error = inLimits ? null : Component.literal(value.doubleValue() < min ?
+                                                                     "§cMinimum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) min : " is " + min) :
+                                                                     "§cMaximum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) max : " is " + max)).withStyle(ChatFormatting.RED);
+                    t.setTooltip(getTooltip(info));
                 }
-                inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
-                info.error = inLimits ? null : Component.literal(value.doubleValue() < min ?
-                                                                 "§cMinimum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) min : " is " + min) :
-                                                                 "§cMaximum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) max : " is " + max)).withStyle(ChatFormatting.RED);
-                t.setTooltip(getTooltip(info));
-            }
 
-            if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty())
-                inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
+                if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty())
+                    inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
+                info.tempValue = s;
+                t.setTextColor(inLimits ? 0xFFFFFFFF : 0xFFFF7777);
+                info.inLimits = inLimits;
+                b.active = entries.stream().allMatch(e -> e.inLimits);
 
-            info.tempValue = s;
-            t.setTextColor(inLimits ? 0xFFFFFFFF : 0xFFFF7777);
-            info.inLimits = inLimits;
-            b.active = entries.stream().allMatch(e -> e.inLimits);
-
-            if (inLimits) {
-                if (info.dataType == Identifier.class) info.setValue(Identifier.tryParse(s));
-                else info.setValue(isNumber ? value : s);
-            }
-
-            if (info.field.getAnnotation(Entry.class).isColor()) {
-                if (!s.contains("#")) s = '#' + s;
-                if (!HEXADECIMAL_ONLY.matcher(s).matches()) return false;
-                try {
-                    info.actionButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
-                } catch (Exception ignored) {
+                if (inLimits) {
+                    if (info.dataType == Identifier.class) info.setValue(Identifier.tryParse(s));
+                    else info.setValue(isNumber ? value : s);
                 }
-            }
-            return true;
+
+                if (info.field.getAnnotation(Entry.class).isColor()) {
+                    try {
+                        info.actionButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
+                    } catch (Exception ignored) {
+                    }
+                }
+                return true;
+            };
         };
     }
 
@@ -336,8 +343,9 @@ public class TXFConfigClient extends TXFConfig {
                     if (entry.buttons.getFirst() instanceof AbstractWidget widget)
                         if (widget.isFocused() || widget.isHovered()) widget.setTooltip(getTooltip(entry.info));
                     if (entry.buttons.get(1) instanceof Button button)
-                        button.active = !isSyncLocked(entry.info) && !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
+                        button.active = !isSyncLocked(entry.info) && !Objects.equals(entry.info.tempValue, entry.info.defaultValue.toString());
                 }
+                done.active = entries.stream().allMatch(e -> e.inLimits);
             }
         }
 
@@ -421,7 +429,7 @@ public class TXFConfigClient extends TXFConfig {
             Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
                 Path p = configPaths.get(modid);
                 if (p != null) Util.getPlatform().openFile(p.toFile());
-            }, true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
+            }, true).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -439,9 +447,11 @@ public class TXFConfigClient extends TXFConfig {
                         info.value = info.defaultValue;
                         info.listIndex = 0;
                         info.tempValue = info.toTemporaryValue();
+                        info.inLimits = true;
+                        info.error = null;
                         list.clear();
                         fillList();
-                    }), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/reset"), 12, 12).size(20, 20).build();
+                    }), true).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/reset"), 12, 12).size(20, 20).build();
                     resetButton.setPosition(width - 205 + 150 + 25, 0);
 
                     if (info.function != null) {
@@ -453,7 +463,7 @@ public class TXFConfigClient extends TXFConfig {
                             widget = Button.builder(values.getValue().apply(info.value), values.getKey()).bounds(width - 185, 0, 150, 20).tooltip(getTooltip(info)).build();
                         } else if (e.isSlider())
                             widget = new SliderWidget(width - 185, 0, 150, 20, Component.literal(info.tempValue), (Double.parseDouble(info.tempValue) - e.min()) / (e.max() - e.min()), info);
-                        else widget = new EditBox(font, width - 185, 0, 150, 20, Component.empty());
+                        else widget = new FilteredField(font, width - 185, 0, 150, 20, Component.empty());
 
                         if (widget instanceof EditBox textField) {
                             textField.setMaxLength(info.width);
@@ -510,7 +520,7 @@ public class TXFConfigClient extends TXFConfig {
                                             fillList();
                                         }
                                     }).start(), true
-                            ).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/explorer"), 12, 12).size(20, 20).build();
+                            ).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/explorer"), 12, 12).size(20, 20).build();
                             explorerButton.setPosition(width - 185, 0);
                             info.actionButton = explorerButton;
                         }
@@ -718,6 +728,30 @@ public class TXFConfigClient extends TXFConfig {
 
         public void setItem(String item) {
             if (this.dynamic) this.item = item;
+        }
+    }
+
+    private static class FilteredField extends EditBox {
+        private Predicate<String> charFilter;
+
+        public FilteredField(Font font, int x, int y, int width, int height, Component message) {
+            super(font, x, y, width, height, message);
+        }
+
+        public void setCharFilter(Predicate<String> charFilter) {
+            this.charFilter = charFilter;
+        }
+
+        @Override
+        public void insertText(String input) {
+            if (charFilter != null) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < input.length(); i++)
+                    if (charFilter.test(String.valueOf(input.charAt(i)))) sb.append(input.charAt(i));
+                input = sb.toString();
+                if (input.isEmpty()) return;
+            }
+            super.insertText(input);
         }
     }
 }

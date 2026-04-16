@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.jahirtrap.configlib.ConfigLibMod.MODID;
+
 public class TXFConfigServer {
     private static final Map<String, Map<String, Object>> cachedDefaults = new HashMap<>();
     private static final Map<String, Map<String, Object>> cachedServerValues = new HashMap<>();
@@ -191,7 +193,7 @@ public class TXFConfigServer {
     }
 
     public record ConfigSyncPayload(String modid, byte[] data) implements CustomPacketPayload {
-        public static final Identifier ID = Identifier.fromNamespaceAndPath("configlibtxf", "config_sync");
+        public static final Identifier ID = Identifier.fromNamespaceAndPath(MODID, "config_sync");
         public static final Type<ConfigSyncPayload> TYPE = new Type<>(ID);
         public static final StreamCodec<FriendlyByteBuf, ConfigSyncPayload> CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, ConfigSyncPayload::modid,

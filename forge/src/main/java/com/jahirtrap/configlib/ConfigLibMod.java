@@ -7,11 +7,14 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
-@Mod("configlibtxf")
-@Mod.EventBusSubscriber(modid = "configlibtxf", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@Mod(ConfigLibMod.MODID)
+@Mod.EventBusSubscriber(modid = ConfigLibMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ConfigLibMod {
+
+    public static final String MODID = "configlibtxf";
+
     public ConfigLibMod() {
-        TXFConfig.init("configlibtxf", ExampleConfig.class, "example");
+        TXFConfig.init(MODID, ExampleConfig.class, "example");
     }
 
     @SubscribeEvent

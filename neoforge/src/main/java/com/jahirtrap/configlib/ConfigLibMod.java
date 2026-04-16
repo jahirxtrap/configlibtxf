@@ -9,12 +9,15 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
-@Mod("configlibtxf")
-@EventBusSubscriber(modid = "configlibtxf", value = Dist.CLIENT)
+@Mod(ConfigLibMod.MODID)
+@EventBusSubscriber(modid = ConfigLibMod.MODID, value = Dist.CLIENT)
 public class ConfigLibMod {
+
+    public static final String MODID = "configlibtxf";
+
     public ConfigLibMod(IEventBus bus) {
         TXFConfigServer.register(bus);
-        TXFConfig.init("configlibtxf", ExampleConfig.class, "example");
+        TXFConfig.init(MODID, ExampleConfig.class, "example");
     }
 
     @SubscribeEvent

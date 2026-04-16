@@ -7,10 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class AutoModMenu implements ModMenuApi {
-    static {
-        TXFConfig.init("configlibtxf", ExampleConfig.class, "example");
-    }
-
     @Override
     public Map<String, ConfigScreenFactory<?>> getProvidedConfigScreenFactories() {
         System.setProperty("java.awt.headless", "false");

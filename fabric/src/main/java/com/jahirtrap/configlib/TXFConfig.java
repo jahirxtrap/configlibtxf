@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public abstract class TXFConfig {
     public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
@@ -27,7 +28,8 @@ public abstract class TXFConfig {
     static final Map<String, Path> configPaths = new ConcurrentHashMap<>();
     public static Path path;
     private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
-    private static final java.util.regex.Pattern COLOR_PATTERN = java.util.regex.Pattern.compile("^#[0-9A-Fa-f]+$");
+    private static final Pattern COLOR_PATTERN = Pattern.compile("^#[0-9A-Fa-f]+$");
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
 
     public static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
@@ -93,6 +95,7 @@ public abstract class TXFConfig {
                     if (!e.regex().isEmpty()) invalid = !s.matches(e.regex());
                     if (!invalid && e.isColor())
                         invalid = !COLOR_PATTERN.matcher(s.startsWith("#") ? s : "#" + s).matches();
+                    if (!invalid && e.idMode() >= 0) invalid = !IDENTIFIER_PATTERN.matcher(s).matches();
                 } else if (type == List.class && !e.regex().isEmpty() && val instanceof List<?> list) {
                     var filtered = list.stream().filter(item -> item instanceof String s && s.matches(e.regex())).toList();
                     if (filtered.size() != list.size()) {
