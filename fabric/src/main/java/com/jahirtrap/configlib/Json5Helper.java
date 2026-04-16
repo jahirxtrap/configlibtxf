@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 public class Json5Helper {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     public static void migrateLegacy(Path json5Path) {
         Path jsonPath = Path.of(json5Path.toString().replace(".json5", ".json"));
@@ -38,7 +38,7 @@ public class Json5Helper {
             String comment = comments.get(key);
             if (comment != null)
                 for (String line : comment.split("\n")) sb.append("  // ").append(line).append("\n");
-            sb.append("  ").append(GSON.toJson(key)).append(": ").append(formatValue(entry.getValue()));
+            sb.append("  ").append(gson.toJson(key)).append(": ").append(formatValue(entry.getValue()));
             if (i < entries.size() - 1) sb.append(",");
             sb.append("\n");
         }
@@ -51,13 +51,13 @@ public class Json5Helper {
             if (arr.isEmpty()) return "[]";
             StringBuilder sb = new StringBuilder("[\n");
             for (int i = 0; i < arr.size(); i++) {
-                sb.append("    ").append(GSON.toJson(arr.get(i)));
+                sb.append("    ").append(gson.toJson(arr.get(i)));
                 if (i < arr.size() - 1) sb.append(",");
                 sb.append("\n");
             }
             return sb.append("  ]").toString();
         }
-        return GSON.toJson(element);
+        return gson.toJson(element);
     }
 
     private static String stripComments(String input) {

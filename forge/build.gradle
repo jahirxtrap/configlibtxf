@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'net.minecraftforge.gradle' version '[6.0.46,6.2)'
+    id 'me.modmuss50.mod-publish-plugin' version '0.6.3'
 }
 
 version = "${version}-forge"
@@ -78,4 +79,31 @@ processResources {
         expand replaceProperties
     }
     from project(":common").sourceSets.main.resources
+}
+
+publishMods {
+    file = tasks.jar.archiveFile
+    displayName = "${mod_name} ${project.version}"
+    type = STABLE
+    modLoaders.addAll("forge")
+    changelog = rootProject.file("CHANGELOG.md").text
+    def gameVersions = ["1.21.11"]
+
+    curseforge {
+        accessToken = System.getenv("CURSEFORGE_TOKEN")
+        projectId = "1515959"
+        minecraftVersions.addAll(gameVersions)
+    }
+
+    modrinth {
+        accessToken = System.getenv("MODRINTH_TOKEN")
+        projectId = "HtQQHY1F"
+        minecraftVersions.addAll(gameVersions)
+    }
+}
+
+["publishCurseforge", "publishModrinth", "publishMods"].each { task ->
+    tasks.named(task) {
+        mustRunAfter(":fabric:$task")
+    }
 }
