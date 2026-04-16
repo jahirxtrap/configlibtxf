@@ -33,7 +33,7 @@ dependencies {
 
 In `gradle.properties`:
 ```properties
-configlibtxf_version=26.1.2-1.3.3
+configlibtxf_version=26.1.2-2.0.0
 ```
 
 ### Creating a Config Class
@@ -103,6 +103,17 @@ Access values directly from the static fields:
 if (ModConfig.enableFeature) {
     // ...
 }
+```
+
+### Multiple Configs / Mod Folder
+
+```java
+// Multiple config files
+TXFConfig.init(MODID, ClientConfig.class, "client");   // config/mymod-client.json5
+TXFConfig.init(MODID, ServerConfig.class, "server");   // config/mymod-server.json5
+
+// Configs in a subfolder
+TXFConfig.init(MODID, Config.class, true);             // config/mymod/mymod.json5
 ```
 
 ### Generated JSON5 File
