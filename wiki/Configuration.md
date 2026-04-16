@@ -283,6 +283,9 @@ var meta = TXFConfig.get(ModConfig.class, "maxHealth");
 // From another mod (using modid)
 var meta = TXFConfig.get("othermod", "maxHealth");
 
+// Target a specific sub-config directly
+var meta = TXFConfig.get("othermod:client", "maxHealth");
+
 if (meta != null) {
     Object current = meta.value();        // current runtime value
     Object def = meta.defaultValue();     // default value
@@ -292,6 +295,15 @@ if (meta != null) {
 ```
 
 Returns `@Nullable EntryMeta` with all annotation parameters + current value + default value. Returns `null` if the mod/field doesn't exist.
+
+### Lookup order for multi-config mods
+
+When a mod has multiple config files, passing just the base modid (e.g. `"othermod"`) searches all its configs:
+
+1. The base config (no suffix) is checked first — it takes priority when the same field name exists in multiple configs.
+2. If not found there, sub-configs are searched in the order they were registered via `TXFConfig.init()`.
+
+To target a specific sub-config deterministically, pass the full key `"modid:suffix"` (e.g. `"othermod:client"`) — the lookup skips the fallback and only checks that config.
 
 ---
 

@@ -1,1 +1,1 @@
-- Update to 1.21.1
+- Changed `TXFConfig.get(modid, field)` to also search sub-configs when a base modid is passed — base config takes priority; otherwise first registered sub-config wins
