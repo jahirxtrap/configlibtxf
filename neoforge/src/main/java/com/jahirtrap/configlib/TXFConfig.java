@@ -4,6 +4,7 @@ import com.google.gson.*;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.lang.annotation.ElementType;
@@ -16,11 +17,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public abstract class TXFConfig {
     public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, String> classToModid = new ConcurrentHashMap<>();
+    static final Map<String, Path> configPaths = new ConcurrentHashMap<>();
     public static Path path;
     private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
+    private static final Pattern COLOR_PATTERN = Pattern.compile("^#[0-9A-Fa-f]+$");
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
 
     public static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
@@ -29,27 +35,84 @@ public abstract class TXFConfig {
             .setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
-        path = FMLPaths.CONFIGDIR.get().resolve(modid + ".json5");
+        init(modid, config, "", false);
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, String suffix) {
+        init(modid, config, suffix, false);
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, boolean useModFolder) {
+        init(modid, config, "", useModFolder);
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, String suffix, boolean useModFolder) {
+        String key = suffix.isEmpty() ? modid : modid + ":" + suffix;
+        String fileName = suffix.isEmpty() ? modid : modid + "-" + suffix;
+        Path configDir = FMLPaths.CONFIGDIR.get();
+        if (useModFolder) {
+            configDir = configDir.resolve(modid);
+            try {
+                Files.createDirectories(configDir);
+            } catch (Exception ignored) {
+            }
+        }
+        path = configDir.resolve(fileName + ".json5");
         Path configPath = path;
+        configPaths.put(key, configPath);
         Json5Helper.migrateLegacy(configPath);
-        configClass.put(modid, config);
-        cacheDefaults(modid, config);
+        configClass.put(key, config);
+        classToModid.put(config, key);
+        cacheDefaults(key, config);
 
         for (Field field : config.getFields()) {
             if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FMLEnvironment.dist.isClient()))
-                TXFConfigClient.initClient(modid, field);
+                TXFConfigClient.initClient(key, field);
         }
         try {
             String content = Files.readString(configPath);
             JsonObject json = Json5Helper.parse(content);
             gson.fromJson(json, config);
-            write(modid);
+            validateFields(key, config);
+            write(key);
         } catch (Exception e) {
-            write(modid);
+            write(key);
         }
 
-        if (TXFConfigServer.hasSyncFields(modid))
+        if (TXFConfigServer.hasSyncFields(key))
             TXFConfigServer.registerEvents();
+    }
+
+    private static void validateFields(String modid, Class<? extends TXFConfig> config) {
+        var defaults = defaultValues.get(modid);
+        if (defaults == null) return;
+        try {
+            for (Field field : config.getFields()) {
+                if (!field.isAnnotationPresent(Entry.class)) continue;
+                Entry e = field.getAnnotation(Entry.class);
+                Object val = field.get(null), def = defaults.get(field.getName());
+                if (def == null) continue;
+                boolean invalid = false;
+                Class<?> type = field.getType();
+                if (type == int.class || type == float.class || type == double.class)
+                    invalid = ((Number) val).doubleValue() < e.min() || ((Number) val).doubleValue() > e.max();
+                else if (type.isEnum()) invalid = val == null;
+                else if (val instanceof String s && !s.isEmpty()) {
+                    if (!e.regex().isEmpty()) invalid = !s.matches(e.regex());
+                    if (!invalid && e.isColor())
+                        invalid = !COLOR_PATTERN.matcher(s.startsWith("#") ? s : "#" + s).matches();
+                    if (!invalid && e.idMode() >= 0) invalid = !IDENTIFIER_PATTERN.matcher(s).matches();
+                } else if (type == List.class && !e.regex().isEmpty() && val instanceof List<?> list) {
+                    var filtered = list.stream().filter(item -> item instanceof String s && s.matches(e.regex())).toList();
+                    if (filtered.size() != list.size()) {
+                        field.set(null, new ArrayList<>(filtered));
+                        continue;
+                    }
+                }
+                if (invalid) field.set(null, def);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private static void cacheDefaults(String modid, Class<? extends TXFConfig> config) {
@@ -75,14 +138,46 @@ public abstract class TXFConfig {
         getClass(modid).writeChanges(modid);
     }
 
-    public void writeChanges(String modid) {
+    @Nullable
+    public static EntryMeta get(Class<? extends TXFConfig> config, String field) {
+        String modid = classToModid.get(config);
+        return modid != null ? get(modid, field) : null;
+    }
+
+    @Nullable
+    public static EntryMeta get(String modid, String field) {
+        Class<? extends TXFConfig> config = configClass.get(modid);
+        if (config == null) return null;
         try {
-            Path configPath = FMLPaths.CONFIGDIR.get().resolve(modid + ".json5");
+            Field f = config.getField(field);
+            if (!f.isAnnotationPresent(Entry.class)) return null;
+            Entry e = f.getAnnotation(Entry.class);
+            var defaults = defaultValues.get(modid);
+            Object def = defaults != null ? defaults.get(field) : null;
+            Object val = f.get(null);
+            return new EntryMeta(val, def, e.min(), e.max(), e.name(), e.comment(), e.regex(), e.regexMessage(), e.category(), e.idMode(), e.itemDisplay(), e.isColor(), e.isSlider(), e.precision(), e.syncServer());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public record EntryMeta(Object value, Object defaultValue, double min, double max, String name, String comment,
+                            String regex, String regexMessage, String category, int idMode, String itemDisplay,
+                            boolean isColor, boolean isSlider, int precision, boolean syncServer) {
+        public boolean validate(String val) {
+            return regex.isEmpty() || val.isEmpty() || val.matches(regex);
+        }
+    }
+
+    public void writeChanges(String key) {
+        try {
+            Path configPath = configPaths.get(key);
+            if (configPath == null) return;
             if (!Files.exists(configPath)) Files.createFile(configPath);
-            JsonObject original = gson.toJsonTree(getClass(modid)).getAsJsonObject();
-            JsonObject json = orderByCategory(modid, original);
-            Map<String, String> comments = buildComments(modid);
-            Map<String, String> categories = buildCategories(modid);
+            JsonObject original = gson.toJsonTree(getClass(key)).getAsJsonObject();
+            JsonObject json = orderByCategory(key, original);
+            Map<String, String> comments = buildComments(key);
+            Map<String, String> categories = buildCategories(key);
             Files.writeString(configPath, Json5Helper.serialize(json, comments, categories));
         } catch (Exception e) {
             e.fillInStackTrace();
@@ -177,6 +272,10 @@ public abstract class TXFConfig {
         String category() default "default";
 
         boolean syncServer() default false;
+
+        String regex() default "";
+
+        String regexMessage() default "";
     }
 
     @Retention(RetentionPolicy.RUNTIME)
@@ -198,6 +297,8 @@ public abstract class TXFConfig {
     @Target(ElementType.FIELD)
     public @interface Comment {
         boolean centered() default false;
+
+        boolean spacer() default false;
 
         String category() default "default";
     }

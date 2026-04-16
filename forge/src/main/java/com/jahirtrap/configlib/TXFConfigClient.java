@@ -25,7 +25,6 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -33,6 +32,7 @@ import java.awt.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -41,6 +41,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static com.jahirtrap.configlib.ConfigLibMod.MODID;
 import static net.minecraft.client.Minecraft.ON_OSX;
 
 @OnlyIn(Dist.CLIENT)
@@ -48,7 +49,8 @@ import static net.minecraft.client.Minecraft.ON_OSX;
 public class TXFConfigClient extends TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
     private static final Pattern DECIMAL_ONLY = Pattern.compile("-?(\\d+\\.?\\d*|\\d*\\.?\\d+|\\.)");
-    private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("(-?[#0-9a-fA-F]*)");
+    private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("[#0-9a-fA-F]*");
+    private static final Pattern IDENTIFIER_ONLY = Pattern.compile("[a-z0-9_.:/-]*");
 
     private static final List<EntryInfo> entries = new CopyOnWriteArrayList<>();
 
@@ -56,12 +58,12 @@ public class TXFConfigClient extends TXFConfig {
         Field field;
         Class<?> dataType;
         int width, listIndex;
-        boolean centered, listExpanded;
+        boolean centered, listExpanded, spacer;
         Object defaultValue, value, function;
-        String modid, tempValue;   // The value visible in the config screen
+        String modid, tempValue;
         boolean inLimits = true;
         Component name, error;
-        AbstractWidget actionButton; // color picker button / explorer button
+        AbstractWidget actionButton;
         Tab tab;
 
         public void setValue(Object value) {
@@ -75,12 +77,7 @@ public class TXFConfigClient extends TXFConfig {
         }
 
         public String toTemporaryValue() {
-            if (this.field.getType() != List.class) return this.value.toString();
-            else try {
-                return ((List<?>) this.value).get(this.listIndex).toString();
-            } catch (Exception ignored) {
-                return "";
-            }
+            return this.value != null ? this.value.toString() : "";
         }
 
         public String toFormattedName() {
@@ -120,7 +117,7 @@ public class TXFConfigClient extends TXFConfig {
             else if (info.dataType == double.class)
                 textField(info, Double::parseDouble, DECIMAL_ONLY, e.min(), e.max(), false);
             else if (info.dataType == String.class || info.dataType == List.class)
-                textField(info, String::length, null, Math.min(e.min(), 0), Math.max(e.max(), 1), true);
+                textField(info, String::length, null, e.min() == Double.MIN_NORMAL ? 0 : e.min(), e.max() == Double.MAX_VALUE ? Double.MAX_VALUE : e.max(), true);
             else if (info.dataType == boolean.class) {
                 Function<Object, Component> func = value -> Component.translatable((Boolean) value ? "gui.yes" : "gui.no").withStyle((Boolean) value ? ChatFormatting.GREEN : ChatFormatting.RED);
                 info.function = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
@@ -141,6 +138,7 @@ public class TXFConfigClient extends TXFConfig {
             }
         } else if (c != null) {
             info.centered = c.centered();
+            info.spacer = c.spacer();
         }
         entries.add(info);
     }
@@ -169,7 +167,12 @@ public class TXFConfigClient extends TXFConfig {
         boolean isNumber = pattern != null;
         info.function = (BiFunction<EditBox, Button, Predicate<String>>) (t, b) -> s -> {
             s = s.trim();
-            if (!(s.isEmpty() || !isNumber || pattern.matcher(s).matches())) return false;
+            if (!s.isEmpty()) {
+                Entry entry = info.field.getAnnotation(Entry.class);
+                if (isNumber && !pattern.matcher(s).matches()) return false;
+                if (!isNumber && entry.isColor() && !HEXADECIMAL_ONLY.matcher(s.startsWith("#") ? s : "#" + s).matches()) return false;
+                if (!isNumber && entry.idMode() >= 0 && !IDENTIFIER_ONLY.matcher(s).matches()) return false;
+            }
 
             Number value = 0;
             boolean inLimits = false;
@@ -187,6 +190,15 @@ public class TXFConfigClient extends TXFConfig {
                 t.setTooltip(getTooltip(info));
             }
 
+            if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty()) {
+                inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
+                if (!inLimits) {
+                    String msg = info.field.getAnnotation(Entry.class).regexMessage();
+                    info.error = Component.literal("§c" + (msg.isEmpty() ? "Invalid format" : msg)).withStyle(ChatFormatting.RED);
+                }
+                t.setTooltip(getTooltip(info));
+            }
+
             info.tempValue = s;
             t.setTextColor(inLimits ? 0xFFFFFFFF : 0xFFFF7777);
             info.inLimits = inLimits;
@@ -198,8 +210,6 @@ public class TXFConfigClient extends TXFConfig {
             }
 
             if (info.field.getAnnotation(Entry.class).isColor()) {
-                if (!s.contains("#")) s = '#' + s;
-                if (!HEXADECIMAL_ONLY.matcher(s).matches()) return false;
                 try {
                     info.actionButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
                 } catch (Exception ignored) {
@@ -211,7 +221,70 @@ public class TXFConfigClient extends TXFConfig {
 
     @OnlyIn(Dist.CLIENT)
     public static Screen getScreen(Screen parent, String modid) {
-        return new ConfigScreen(parent, modid);
+        List<String> keys = configClass.keySet().stream()
+                .filter(k -> k.equals(modid) || k.startsWith(modid + ":")).toList();
+        if (keys.size() <= 1) return new ConfigScreen(parent, keys.isEmpty() ? modid : keys.getFirst());
+        return new HubScreen(parent, modid, keys);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public static class HubScreen extends Screen {
+        private final Screen parent;
+        private final String modid;
+        private final List<String> keys;
+        private ConfigListWidget list;
+
+        protected HubScreen(Screen parent, String modid, List<String> keys) {
+            super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
+            this.parent = parent;
+            this.modid = modid;
+            this.keys = keys;
+        }
+
+        @Override
+        public void init() {
+            super.init();
+            var tabNavigation = TabNavigationBar.builder(new TabManager(a -> {
+                    }, a -> {
+                    }), this.width)
+                    .addTabs(new GridLayoutTab(this.title)).build();
+            tabNavigation.selectTab(0, false);
+            tabNavigation.arrangeElements();
+            this.addRenderableWidget(tabNavigation);
+
+            this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
+            for (String key : keys) {
+                String suffix = key.contains(":") ? key.substring(key.indexOf(':') + 1) : "default";
+                String translationKey = modid + ".config.hub." + suffix;
+                String displayName = I18n.exists(translationKey) ? I18n.get(translationKey) :
+                        suffix.substring(0, 1).toUpperCase() + suffix.substring(1);
+                String fileName = (suffix.equals("default") ? modid : modid + "-" + suffix) + ".json5";
+                Button configButton = Button.builder(Component.literal(displayName + " ").append(Component.literal("(" + fileName + ")").withStyle(ChatFormatting.GRAY)), b ->
+                        Objects.requireNonNull(minecraft).setScreen(new ConfigScreen(this, key))
+                ).bounds(this.width / 2 - 150, 0, 300, 20).build();
+                Button editorButton = SpriteIconButton.builder(Component.empty(), b -> {
+                    Path p = configPaths.get(key);
+                    if (p != null) Util.getPlatform().openFile(p.toFile());
+                }, true).sprite(ResourceLocation.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build();
+                editorButton.setPosition(this.width / 2 - 175, 0);
+                list.addButton(Lists.newArrayList(configButton, editorButton), Component.empty(), null);
+            }
+            this.addWidget(this.list);
+            this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
+                    .bounds(this.width / 2 - 100, this.height - 27, 200, 20).build());
+        }
+
+        @Override
+        public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+            super.render(context, mouseX, mouseY, delta);
+            renderMenuBackgroundTexture(context, MENU_BACKGROUND, 0, 24, 0, 0, this.width, 7);
+            this.list.render(context, mouseX, mouseY, delta);
+        }
+
+        @Override
+        public void onClose() {
+            Objects.requireNonNull(minecraft).setScreen(parent);
+        }
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -265,7 +338,6 @@ public class TXFConfigClient extends TXFConfig {
                     && info.field.isAnnotationPresent(Entry.class) && info.field.getAnnotation(Entry.class).syncServer();
         }
 
-        // Real Time config update //
         @Override
         public void tick() {
             super.tick();
@@ -292,15 +364,18 @@ public class TXFConfigClient extends TXFConfig {
                     if (entry.buttons.getFirst() instanceof AbstractWidget widget)
                         if (widget.isFocused() || widget.isHovered()) widget.setTooltip(getTooltip(entry.info));
                     if (entry.buttons.get(1) instanceof Button button)
-                        button.active = !isSyncLocked(entry.info) && !Objects.equals(entry.info.value.toString(), entry.info.defaultValue.toString());
+                        button.active = !isSyncLocked(entry.info) && !Objects.equals(entry.info.tempValue, entry.info.defaultValue.toString());
                 }
+                done.active = entries.stream().allMatch(e -> e.inLimits);
             }
         }
 
         public void loadValues() {
             boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
             try {
-                gson.fromJson(Json5Helper.parse(Files.readString(path)), configClass.get(modid));
+                Path configPath = configPaths.get(modid);
+                if (configPath != null)
+                    gson.fromJson(Json5Helper.parse(Files.readString(configPath)), configClass.get(modid));
             } catch (Exception e) {
                 if (!syncActive) write(modid);
             }
@@ -333,7 +408,8 @@ public class TXFConfigClient extends TXFConfig {
         public void onClose() {
             loadValues();
             cleanup();
-            Objects.requireNonNull(minecraft).setScreen(parent);
+            Screen target = (parent instanceof HubScreen hub) ? hub.parent : parent;
+            Objects.requireNonNull(minecraft).setScreen(target);
         }
 
         private void cleanup() {
@@ -356,7 +432,15 @@ public class TXFConfigClient extends TXFConfig {
             tabNavigation.arrangeElements();
             if (!tabs.isEmpty()) this.addRenderableWidget(tabNavigation);
 
-            this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
+            boolean hasHub = parent instanceof HubScreen;
+            if (hasHub) {
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_BACK, button ->
+                        Objects.requireNonNull(minecraft).setScreen(parent)
+                ).bounds(this.width / 2 - 156, this.height - 26, 100, 20).build());
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 52, this.height - 26, 100, 20).build());
+            } else {
+                this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 154, this.height - 26, 150, 20).build());
+            }
             done = this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, (button) -> {
                 boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
                 for (EntryInfo info : entries)
@@ -371,8 +455,11 @@ public class TXFConfigClient extends TXFConfig {
                 if (syncActive) TXFConfigServer.reapply(modid);
                 cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
-            }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
-            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FMLPaths.CONFIGDIR.get().resolve(modid + ".json5").toFile()), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
+            }).bounds(hasHub ? this.width / 2 + 52 : this.width / 2 + 4, this.height - 26, hasHub ? 100 : 150, 20).build());
+            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
+                Path p = configPaths.get(modid);
+                if (p != null) Util.getPlatform().openFile(p.toFile());
+            }, true).sprite(ResourceLocation.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -383,23 +470,37 @@ public class TXFConfigClient extends TXFConfig {
         public void fillList() {
             for (EntryInfo info : entries) {
                 if (info.modid.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
+                    if (info.spacer) {
+                        this.list.addButton(List.of(), Component.empty(), null);
+                        continue;
+                    }
                     Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
-                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName()))
-                        name = Component.literal(info.toFormattedName());
+                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName())) {
+                        if (info.field.isAnnotationPresent(Comment.class)) {
+                            try {
+                                Object val = info.field.get(null);
+                                name = (val instanceof String s && !s.isEmpty()) ? Component.literal(s) : Component.literal(info.toFormattedName());
+                            } catch (Exception ignored) {
+                                name = Component.literal(info.toFormattedName());
+                            }
+                        } else name = Component.literal(info.toFormattedName());
+                    }
                     Button resetButton = SpriteIconButton.builder(Component.empty(), (button -> {
                         info.value = info.defaultValue;
                         info.listIndex = 0;
                         info.tempValue = info.toTemporaryValue();
+                        info.inLimits = true;
+                        info.error = null;
                         list.clear();
                         fillList();
-                    }), true).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/reset"), 12, 12).size(20, 20).build();
+                    }), true).sprite(ResourceLocation.fromNamespaceAndPath(MODID, "icon/reset"), 12, 12).size(20, 20).build();
                     resetButton.setPosition(width - 205 + 150 + 25, 0);
 
                     if (info.function != null) {
                         AbstractWidget widget;
                         Entry e = info.field.getAnnotation(Entry.class);
 
-                        if (info.function instanceof Map.Entry) { // Enums & booleans
+                        if (info.function instanceof Map.Entry) {
                             var values = (Map.Entry<Button.OnPress, Function<Object, Component>>) info.function;
                             widget = Button.builder(values.getValue().apply(info.value), values.getKey()).bounds(width - 185, 0, 150, 20).tooltip(getTooltip(info)).build();
                         } else if (e.isSlider())
@@ -461,7 +562,7 @@ public class TXFConfigClient extends TXFConfig {
                                             fillList();
                                         }
                                     }).start(), true
-                            ).sprite(ResourceLocation.fromNamespaceAndPath("configlibtxf", "icon/explorer"), 12, 12).size(20, 20).build();
+                            ).sprite(ResourceLocation.fromNamespaceAndPath(MODID, "icon/explorer"), 12, 12).size(20, 20).build();
                             explorerButton.setPosition(width - 185, 0);
                             info.actionButton = explorerButton;
                         }
@@ -483,7 +584,6 @@ public class TXFConfigClient extends TXFConfig {
                         }
                         this.list.addButton(widgets, name, info);
 
-                        // Expanded list entries
                         if (info.field.getType() == List.class && info.listExpanded) {
                             var listValues = new ArrayList<>((List<?>) info.value);
                             for (int idx = 0; idx < listValues.size(); idx++) {
@@ -496,27 +596,36 @@ public class TXFConfigClient extends TXFConfig {
                                     if (index < currentList.size()) {
                                         currentList.set(index, s);
                                         info.value = currentList;
+                                        info.tempValue = info.toTemporaryValue();
                                     }
                                 });
                                 Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
                                     if (index < currentList.size()) currentList.remove(index);
                                     info.value = currentList;
+                                    info.tempValue = info.toTemporaryValue();
                                     list.clear();
                                     fillList();
                                 }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                List<AbstractWidget> listWidgets = Lists.newArrayList(listField, removeButton);
+                                if (e.idMode() >= 0) {
+                                    ItemField listItemField = new ItemField(font, width - 185, 0, 20, 20, e.idMode());
+                                    listField.setWidth(listField.getWidth() - 22);
+                                    listField.setX(listField.getX() + 22);
+                                    listWidgets.add(listItemField);
+                                }
                                 if (locked) {
                                     listField.active = false;
                                     listField.setEditable(false);
                                     removeButton.active = false;
                                 }
-                                this.list.addButton(Lists.newArrayList(listField, removeButton), Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
+                                this.list.addButton(listWidgets, Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
                             }
-                            // Add button
                             Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
                                 var currentList = new ArrayList<>((List<Object>) info.value);
                                 currentList.add("");
                                 info.value = currentList;
+                                info.tempValue = info.toTemporaryValue();
                                 list.clear();
                                 fillList();
                             }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
@@ -538,7 +647,7 @@ public class TXFConfigClient extends TXFConfig {
             if (this.list != null) for (ButtonEntry entry : this.list.children())
                 if (entry.buttons != null && entry.buttons.size() > 2)
                     if (entry.buttons.get(2) instanceof ItemField widget && widget.dynamic)
-                        widget.setItem(entry.info.tempValue);
+                        widget.setItem(entry.info != null ? entry.info.tempValue : (entry.buttons.getFirst() instanceof EditBox eb ? eb.getValue() : ""));
         }
     }
 
@@ -586,7 +695,7 @@ public class TXFConfigClient extends TXFConfig {
                 b.setY(y);
                 b.render(context, mouseX, mouseY, tickDelta);
             });
-            if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
+            if (text != null && !text.getString().isEmpty()) {
                 int wrappedY = y;
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX() - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
                     context.drawString(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFF);
