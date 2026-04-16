@@ -20,11 +20,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 public abstract class TXFConfig {
     public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
     private static final Map<Class<?>, String> classToModid = new ConcurrentHashMap<>();
+    private static final List<String> registrationOrder = new CopyOnWriteArrayList<>();
     static final Map<String, Path> configPaths = new ConcurrentHashMap<>();
     public static Path path;
     private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
@@ -73,6 +75,7 @@ public abstract class TXFConfig {
         Json5Helper.migrateLegacy(configPath);
         configClass.put(key, config);
         classToModid.put(config, key);
+        if (!registrationOrder.contains(key)) registrationOrder.add(key);
         cacheDefaults(key, config);
 
         for (Field field : config.getFields()) {
@@ -156,13 +159,28 @@ public abstract class TXFConfig {
 
     @Nullable
     public static EntryMeta get(String modid, String field) {
-        Class<? extends TXFConfig> config = configClass.get(modid);
+        EntryMeta meta = buildMeta(modid, field);
+        if (meta != null) return meta;
+        // When only a base modid is passed, also search sub-configs in registration order
+        if (!modid.contains(":")) {
+            for (String key : registrationOrder) {
+                if (key.startsWith(modid + ":")) {
+                    meta = buildMeta(key, field);
+                    if (meta != null) return meta;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static EntryMeta buildMeta(String key, String field) {
+        Class<? extends TXFConfig> config = configClass.get(key);
         if (config == null) return null;
         try {
             Field f = config.getField(field);
             if (!f.isAnnotationPresent(Entry.class)) return null;
             Entry e = f.getAnnotation(Entry.class);
-            var defaults = defaultValues.get(modid);
+            var defaults = defaultValues.get(key);
             Object def = defaults != null ? defaults.get(field) : null;
             Object val = f.get(null);
             return new EntryMeta(val, def, e.min(), e.max(), e.name(), e.comment(), e.regex(), e.regexMessage(), e.category(), e.idMode(), e.itemDisplay(), e.isColor(), e.isSlider(), e.precision(), e.syncServer());
