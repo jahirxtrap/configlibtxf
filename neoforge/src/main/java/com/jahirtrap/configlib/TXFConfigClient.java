@@ -28,7 +28,6 @@ import net.minecraft.util.Util;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.ModList;
-import net.neoforged.fml.loading.FMLPaths;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -36,6 +35,7 @@ import java.awt.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -49,7 +49,7 @@ import java.util.regex.Pattern;
 public class TXFConfigClient extends TXFConfig {
     private static final Pattern INTEGER_ONLY = Pattern.compile("(-?[0-9]*)");
     private static final Pattern DECIMAL_ONLY = Pattern.compile("-?(\\d+\\.?\\d*|\\d*\\.?\\d+|\\.)");
-    private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("(-?[#0-9a-fA-F]*)");
+    private static final Pattern HEXADECIMAL_ONLY = Pattern.compile("[#0-9a-fA-F]*");
 
     private static final List<EntryInfo> entries = new CopyOnWriteArrayList<>();
 
@@ -215,7 +215,47 @@ public class TXFConfigClient extends TXFConfig {
 
     @OnlyIn(Dist.CLIENT)
     public static Screen getScreen(Screen parent, String modid) {
-        return new ConfigScreen(parent, modid);
+        List<String> keys = configClass.keySet().stream()
+                .filter(k -> k.equals(modid) || k.startsWith(modid + ":")).toList();
+        if (keys.size() <= 1) return new ConfigScreen(parent, keys.isEmpty() ? modid : keys.getFirst());
+        return new HubScreen(parent, modid, keys);
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public static class HubScreen extends Screen {
+        private final Screen parent;
+        private final String modid;
+        private final List<String> keys;
+
+        protected HubScreen(Screen parent, String modid, List<String> keys) {
+            super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
+            this.parent = parent;
+            this.modid = modid;
+            this.keys = keys;
+        }
+
+        @Override
+        public void init() {
+            super.init();
+            int y = this.height / 2 - (keys.size() * 24) / 2;
+            for (String key : keys) {
+                String suffix = key.contains(":") ? key.substring(key.indexOf(':') + 1) : "default";
+                String translationKey = modid + ".config.file." + suffix;
+                Component name = I18n.exists(translationKey) ? Component.translatable(translationKey) :
+                        Component.literal(suffix.substring(0, 1).toUpperCase() + suffix.substring(1));
+                this.addRenderableWidget(Button.builder(name, button ->
+                        Objects.requireNonNull(minecraft).setScreen(new ConfigScreen(this, key))
+                ).bounds(this.width / 2 - 100, y, 200, 20).build());
+                y += 24;
+            }
+            this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
+                    .bounds(this.width / 2 - 100, this.height - 27, 200, 20).build());
+        }
+
+        @Override
+        public void onClose() {
+            Objects.requireNonNull(minecraft).setScreen(parent);
+        }
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -304,7 +344,9 @@ public class TXFConfigClient extends TXFConfig {
         public void loadValues() {
             boolean syncActive = isOnMultiplayerServer() && TXFConfigServer.isActive(modid);
             try {
-                gson.fromJson(Json5Helper.parse(Files.readString(path)), configClass.get(modid));
+                Path configPath = configPaths.get(modid);
+                if (configPath != null)
+                    gson.fromJson(Json5Helper.parse(Files.readString(configPath)), configClass.get(modid));
             } catch (Exception e) {
                 if (!syncActive) write(modid);
             }
@@ -376,7 +418,10 @@ public class TXFConfigClient extends TXFConfig {
                 cleanup();
                 Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(this.width / 2 + 4, this.height - 26, 150, 20).build());
-            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> Util.getPlatform().openFile(FMLPaths.CONFIGDIR.get().resolve(modid + ".json5").toFile()), true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
+            Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
+                Path p = configPaths.get(modid);
+                if (p != null) Util.getPlatform().openFile(p.toFile());
+            }, true).sprite(Identifier.fromNamespaceAndPath("configlibtxf", "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
@@ -661,7 +706,7 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
             super.extractWidgetRenderState(context, mouseX, mouseY, delta);
-            if (!dynamic && this.isHovered()) context.requestCursor(CursorTypes.ARROW);
+            if (this.isHovered()) context.requestCursor(CursorTypes.ARROW);
             if (item != null) {
                 Identifier r = Identifier.tryParse(item);
                 if (r != null) {

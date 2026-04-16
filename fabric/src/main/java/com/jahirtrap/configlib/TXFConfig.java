@@ -6,6 +6,7 @@ import com.google.gson.stream.JsonWriter;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.resources.Identifier;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.io.IOException;
@@ -20,13 +21,13 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jetbrains.annotations.Nullable;
-
 public abstract class TXFConfig {
     public static final Map<String, Class<? extends TXFConfig>> configClass = new ConcurrentHashMap<>();
     private static final Map<Class<?>, String> classToModid = new ConcurrentHashMap<>();
+    static final Map<String, Path> configPaths = new ConcurrentHashMap<>();
     public static Path path;
     private static final Map<String, Map<String, Object>> defaultValues = new ConcurrentHashMap<>();
+    private static final java.util.regex.Pattern COLOR_PATTERN = java.util.regex.Pattern.compile("^#[0-9A-Fa-f]+$");
 
     public static final Gson gson = new GsonBuilder()
             .excludeFieldsWithModifiers(Modifier.TRANSIENT).excludeFieldsWithModifiers(Modifier.PRIVATE)
@@ -42,28 +43,35 @@ public abstract class TXFConfig {
             }).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
-        path = FabricLoader.getInstance().getConfigDir().resolve(modid + ".json5");
+        init(modid, config, "");
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, String suffix) {
+        String key = suffix.isEmpty() ? modid : modid + ":" + suffix;
+        String fileName = suffix.isEmpty() ? modid : modid + "-" + suffix;
+        path = FabricLoader.getInstance().getConfigDir().resolve(fileName + ".json5");
         Path configPath = path;
+        configPaths.put(key, configPath);
         Json5Helper.migrateLegacy(configPath);
-        configClass.put(modid, config);
-        classToModid.put(config, modid);
-        cacheDefaults(modid, config);
+        configClass.put(key, config);
+        classToModid.put(config, key);
+        cacheDefaults(key, config);
 
         for (Field field : config.getFields()) {
             if ((field.isAnnotationPresent(Entry.class) || field.isAnnotationPresent(Comment.class)) && !field.isAnnotationPresent(Server.class) && !field.isAnnotationPresent(Hidden.class) && (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT))
-                TXFConfigClient.initClient(modid, field);
+                TXFConfigClient.initClient(key, field);
         }
         try {
             String content = Files.readString(configPath);
             JsonObject json = Json5Helper.parse(content);
             gson.fromJson(json, config);
-            validateFields(modid, config);
-            write(modid);
+            validateFields(key, config);
+            write(key);
         } catch (Exception e) {
-            write(modid);
+            write(key);
         }
 
-        if (TXFConfigServer.hasSyncFields(modid))
+        if (TXFConfigServer.hasSyncFields(key))
             TXFConfigServer.register();
     }
 
@@ -74,12 +82,25 @@ public abstract class TXFConfig {
             for (Field field : config.getFields()) {
                 if (!field.isAnnotationPresent(Entry.class)) continue;
                 Entry e = field.getAnnotation(Entry.class);
-                if (e.regex().isEmpty()) continue;
-                Object val = field.get(null);
-                if (val instanceof String s && !s.isEmpty() && !s.matches(e.regex())) {
-                    Object def = defaults.get(field.getName());
-                    if (def != null) field.set(null, def);
+                Object val = field.get(null), def = defaults.get(field.getName());
+                if (def == null) continue;
+                boolean invalid = false;
+                Class<?> type = field.getType();
+                if (type == int.class || type == float.class || type == double.class)
+                    invalid = ((Number) val).doubleValue() < e.min() || ((Number) val).doubleValue() > e.max();
+                else if (type.isEnum()) invalid = val == null;
+                else if (val instanceof String s && !s.isEmpty()) {
+                    if (!e.regex().isEmpty()) invalid = !s.matches(e.regex());
+                    if (!invalid && e.isColor())
+                        invalid = !COLOR_PATTERN.matcher(s.startsWith("#") ? s : "#" + s).matches();
+                } else if (type == List.class && !e.regex().isEmpty() && val instanceof List<?> list) {
+                    var filtered = list.stream().filter(item -> item instanceof String s && s.matches(e.regex())).toList();
+                    if (filtered.size() != list.size()) {
+                        field.set(null, new ArrayList<>(filtered));
+                        continue;
+                    }
                 }
+                if (invalid) field.set(null, def);
             }
         } catch (Exception ignored) {
         }
@@ -139,14 +160,15 @@ public abstract class TXFConfig {
         }
     }
 
-    public void writeChanges(String modid) {
+    public void writeChanges(String key) {
         try {
-            Path configPath = FabricLoader.getInstance().getConfigDir().resolve(modid + ".json5");
+            Path configPath = configPaths.get(key);
+            if (configPath == null) return;
             if (!Files.exists(configPath)) Files.createFile(configPath);
-            JsonObject original = gson.toJsonTree(getClass(modid)).getAsJsonObject();
-            JsonObject json = orderByCategory(modid, original);
-            Map<String, String> comments = buildComments(modid);
-            Map<String, String> categories = buildCategories(modid);
+            JsonObject original = gson.toJsonTree(getClass(key)).getAsJsonObject();
+            JsonObject json = orderByCategory(key, original);
+            Map<String, String> comments = buildComments(key);
+            Map<String, String> categories = buildCategories(key);
             Files.writeString(configPath, Json5Helper.serialize(json, comments, categories));
         } catch (Exception e) {
             e.fillInStackTrace();

@@ -14,13 +14,14 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 public class ConfigLibMod {
     public ConfigLibMod(IEventBus bus) {
         TXFConfigServer.register(bus);
+        TXFConfig.init("configlibtxf", ExampleConfig.class, "example");
     }
 
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         System.setProperty("java.awt.headless", "false");
         ModList.get().forEachModContainer((modid, container) -> {
-            if (TXFConfig.configClass.containsKey(modid)) {
+            if (TXFConfig.configClass.keySet().stream().anyMatch(k -> k.equals(modid) || k.startsWith(modid + ":"))) {
                 container.registerExtensionPoint(IConfigScreenFactory.class, (client, parent) -> TXFConfigClient.getScreen(parent, modid));
             }
         });

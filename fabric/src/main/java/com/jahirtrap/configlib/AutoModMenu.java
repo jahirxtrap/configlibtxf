@@ -7,11 +7,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class AutoModMenu implements ModMenuApi {
+    static {
+        TXFConfig.init("configlibtxf", ExampleConfig.class, "example");
+    }
+
     @Override
     public Map<String, ConfigScreenFactory<?>> getProvidedConfigScreenFactories() {
         System.setProperty("java.awt.headless", "false");
         HashMap<String, ConfigScreenFactory<?>> map = new HashMap<>();
-        TXFConfig.configClass.forEach((modid, cClass) -> map.put(modid, parent -> TXFConfigClient.getScreen(parent, modid)));
+        TXFConfig.configClass.forEach((key, cClass) -> {
+            String modid = key.contains(":") ? key.substring(0, key.indexOf(':')) : key;
+            map.putIfAbsent(modid, parent -> TXFConfigClient.getScreen(parent, modid));
+        });
         return map;
     }
 }
