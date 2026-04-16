@@ -95,6 +95,16 @@ When connected to a server, fields with `syncServer = true` are:
 - Clicking **Done** only saves non-synced fields to the local file
 - Server values are never written to the local config file
 
+### Hub Screen (Multiple Configs)
+
+When a mod registers multiple config files, a hub screen is shown with a button for each config. Each button shows the display name and file name in gray. An editor icon button opens the file directly.
+
+Navigation:
+- **Done** in config → saves and returns to the hub
+- **Done** in hub → closes everything
+- **Cancel** in config → closes everything without saving
+- **Back** in config → returns to the hub without saving
+
 ### Editor Button
 
 The config screen includes an editor button that opens the JSON5 file directly in the system's default text editor.

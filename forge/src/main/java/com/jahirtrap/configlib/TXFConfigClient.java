@@ -257,7 +257,7 @@ public class TXFConfigClient extends TXFConfig {
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
             for (String key : keys) {
                 String suffix = key.contains(":") ? key.substring(key.indexOf(':') + 1) : "default";
-                String translationKey = modid + ".config.file." + suffix;
+                String translationKey = modid + ".config.hub." + suffix;
                 String displayName = I18n.exists(translationKey) ? I18n.get(translationKey) :
                         suffix.substring(0, 1).toUpperCase() + suffix.substring(1);
                 String fileName = (suffix.equals("default") ? modid : modid + "-" + suffix) + ".json5";
@@ -457,8 +457,7 @@ public class TXFConfigClient extends TXFConfig {
                 write(modid);
                 if (syncActive) TXFConfigServer.reapply(modid);
                 cleanup();
-                Screen target = hasHub ? ((HubScreen) parent).parent : parent;
-                Objects.requireNonNull(minecraft).setScreen(target);
+                Objects.requireNonNull(minecraft).setScreen(parent);
             }).bounds(hasHub ? this.width / 2 + 52 : this.width / 2 + 4, this.height - 26, hasHub ? 100 : 150, 20).build());
             Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
                 Path p = configPaths.get(modid);
