@@ -170,7 +170,8 @@ public class TXFConfigClient extends TXFConfig {
             if (!s.isEmpty()) {
                 Entry entry = info.field.getAnnotation(Entry.class);
                 if (isNumber && !pattern.matcher(s).matches()) return false;
-                if (!isNumber && entry.isColor() && !HEXADECIMAL_ONLY.matcher(s.startsWith("#") ? s : "#" + s).matches()) return false;
+                if (!isNumber && entry.isColor() && !HEXADECIMAL_ONLY.matcher(s.startsWith("#") ? s : "#" + s).matches())
+                    return false;
                 if (!isNumber && entry.idMode() >= 0 && !IDENTIFIER_ONLY.matcher(s).matches()) return false;
             }
 

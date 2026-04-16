@@ -33,7 +33,7 @@ dependencies {
 
 In `gradle.properties`:
 ```properties
-configlibtxf_version=1.21.1-2.0.0
+configlibtxf_version=26.1.2-2.0.0
 ```
 
 ### Creating a Config Class

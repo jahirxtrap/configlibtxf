@@ -68,9 +68,23 @@ jar.finalizedBy('remapJar')
 
 publishMods {
     file = tasks.remapJar.archiveFile
-    displayName = rootProject.version
+    displayName = "${mod_name} ${project.version}"
     type = STABLE
+    modLoaders.addAll("fabric", "quilt")
     changelog = rootProject.file("CHANGELOG.md").text
+    def gameVersions = ["1.21", "1.21.1"]
+
+    curseforge {
+        accessToken = System.getenv("CURSEFORGE_TOKEN")
+        projectId = "1515959"
+        minecraftVersions.addAll(gameVersions)
+    }
+
+    modrinth {
+        accessToken = System.getenv("MODRINTH_TOKEN")
+        projectId = "HtQQHY1F"
+        minecraftVersions.addAll(gameVersions)
+    }
 
     github {
         accessToken = System.getenv("GITHUB_TOKEN")
