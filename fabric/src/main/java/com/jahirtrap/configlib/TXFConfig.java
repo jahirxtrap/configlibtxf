@@ -45,13 +45,29 @@ public abstract class TXFConfig {
             }).setPrettyPrinting().create();
 
     public static void init(String modid, Class<? extends TXFConfig> config) {
-        init(modid, config, "");
+        init(modid, config, "", false);
     }
 
     public static void init(String modid, Class<? extends TXFConfig> config, String suffix) {
+        init(modid, config, suffix, false);
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, boolean useModFolder) {
+        init(modid, config, "", useModFolder);
+    }
+
+    public static void init(String modid, Class<? extends TXFConfig> config, String suffix, boolean useModFolder) {
         String key = suffix.isEmpty() ? modid : modid + ":" + suffix;
         String fileName = suffix.isEmpty() ? modid : modid + "-" + suffix;
-        path = FabricLoader.getInstance().getConfigDir().resolve(fileName + ".json5");
+        Path configDir = FabricLoader.getInstance().getConfigDir();
+        if (useModFolder) {
+            configDir = configDir.resolve(modid);
+            try {
+                Files.createDirectories(configDir);
+            } catch (Exception ignored) {
+            }
+        }
+        path = configDir.resolve(fileName + ".json5");
         Path configPath = path;
         configPaths.put(key, configPath);
         Json5Helper.migrateLegacy(configPath);
@@ -149,15 +165,15 @@ public abstract class TXFConfig {
             var defaults = defaultValues.get(modid);
             Object def = defaults != null ? defaults.get(field) : null;
             Object val = f.get(null);
-            return new EntryMeta(val, def, e.min(), e.max(), e.name(), e.comment(), e.regex(), e.category(), e.idMode(), e.itemDisplay(), e.isColor(), e.isSlider(), e.precision(), e.syncServer());
+            return new EntryMeta(val, def, e.min(), e.max(), e.name(), e.comment(), e.regex(), e.regexMessage(), e.category(), e.idMode(), e.itemDisplay(), e.isColor(), e.isSlider(), e.precision(), e.syncServer());
         } catch (Exception ex) {
             return null;
         }
     }
 
     public record EntryMeta(Object value, Object defaultValue, double min, double max, String name, String comment,
-                            String regex, String category, int idMode, String itemDisplay, boolean isColor,
-                            boolean isSlider, int precision, boolean syncServer) {
+                            String regex, String regexMessage, String category, int idMode, String itemDisplay,
+                            boolean isColor, boolean isSlider, int precision, boolean syncServer) {
         public boolean validate(String val) {
             return regex.isEmpty() || val.isEmpty() || val.matches(regex);
         }
@@ -268,6 +284,8 @@ public abstract class TXFConfig {
         boolean syncServer() default false;
 
         String regex() default "";
+
+        String regexMessage() default "";
     }
 
     @Retention(RetentionPolicy.RUNTIME)
@@ -289,6 +307,8 @@ public abstract class TXFConfig {
     @Target(ElementType.FIELD)
     public @interface Comment {
         boolean centered() default false;
+
+        boolean spacer() default false;
 
         String category() default "default";
     }

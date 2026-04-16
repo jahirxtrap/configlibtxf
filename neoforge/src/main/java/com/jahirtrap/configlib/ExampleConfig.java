@@ -11,7 +11,7 @@ public class ExampleConfig extends TXFConfig {
     public static boolean booleanField = true;
     @Entry(category = CATEGORY_1, comment = "A string field")
     public static String stringField = "Hello";
-    @Entry(category = CATEGORY_1, comment = "String with regex", regex = "^[a-zA-Z0-9_]{3,16}$")
+    @Entry(category = CATEGORY_1, comment = "String with regex", regex = "^[a-zA-Z0-9_]{3,16}$", regexMessage = "Must be 3-16 alphanumeric characters")
     public static String stringRegex = "Steve";
     @Entry(category = CATEGORY_1)
     public static Difficulty enumField = Difficulty.NORMAL;

@@ -60,7 +60,7 @@ public class TXFConfigClient extends TXFConfig {
         Field field;
         Class<?> dataType;
         int width, listIndex;
-        boolean centered, listExpanded;
+        boolean centered, listExpanded, spacer;
         Object defaultValue, value, function;
         String modid, tempValue;   // The value visible in the config screen
         boolean inLimits = true;
@@ -140,6 +140,7 @@ public class TXFConfigClient extends TXFConfig {
             }
         } else if (c != null) {
             info.centered = c.centered();
+            info.spacer = c.spacer();
         }
         entries.add(info);
     }
@@ -190,8 +191,14 @@ public class TXFConfigClient extends TXFConfig {
                     t.setTooltip(getTooltip(info));
                 }
 
-                if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty())
+                if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty()) {
                     inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
+                    if (!inLimits) {
+                        String msg = info.field.getAnnotation(Entry.class).regexMessage();
+                        info.error = Component.literal("§c" + (msg.isEmpty() ? "Invalid format" : msg)).withStyle(ChatFormatting.RED);
+                    }
+                    t.setTooltip(getTooltip(info));
+                }
 
                 info.tempValue = s;
                 t.setTextColor(inLimits ? 0xFFFFFFFF : 0xFFFF7777);
@@ -239,7 +246,9 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void init() {
             super.init();
-            var tabNavigation = TabNavigationBar.builder(new TabManager(a -> {}, a -> {}), this.width)
+            var tabNavigation = TabNavigationBar.builder(new TabManager(a -> {
+                    }, a -> {
+                    }), this.width)
                     .addTabs(new GridLayoutTab(this.title)).build();
             tabNavigation.selectTab(0, false);
             tabNavigation.arrangeElements();
@@ -465,9 +474,21 @@ public class TXFConfigClient extends TXFConfig {
         public void fillList() {
             for (EntryInfo info : entries) {
                 if (info.modid.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
+                    if (info.spacer) {
+                        this.list.addButton(List.of(), Component.empty(), null);
+                        continue;
+                    }
                     Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
-                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName()))
-                        name = Component.literal(info.toFormattedName());
+                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName())) {
+                        if (info.field.isAnnotationPresent(Comment.class)) {
+                            try {
+                                Object val = info.field.get(null);
+                                name = (val instanceof String s && !s.isEmpty()) ? Component.literal(s) : Component.literal(info.toFormattedName());
+                            } catch (Exception ignored) {
+                                name = Component.literal(info.toFormattedName());
+                            }
+                        } else name = Component.literal(info.toFormattedName());
+                    }
                     Button resetButton = SpriteIconButton.builder(Component.empty(), (button -> {
                         info.value = info.defaultValue;
                         info.listIndex = 0;
@@ -680,7 +701,7 @@ public class TXFConfigClient extends TXFConfig {
                 b.setY(this.getY());
                 b.extractRenderState(context, mouseX, mouseY, tickDelta);
             });
-            if (text != null && (!text.getString().contains("spacer") || !buttons.isEmpty())) {
+            if (text != null && !text.getString().isEmpty()) {
                 int wrappedY = this.getY();
                 for (Iterator<FormattedCharSequence> iterator = textRenderer.split(text, (buttons.size() > 1 ? buttons.get(1).getX() - 24 : Minecraft.getInstance().getWindow().getGuiScaledWidth() - 24)).iterator(); iterator.hasNext(); wrappedY += 9) {
                     context.text(textRenderer, iterator.next(), (centered) ? (Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - (textRenderer.width(text) / 2)) : 12, wrappedY + 5, 0xFFFFFFFF);
