@@ -1,1 +1,15 @@
--
+- Added regex validation for string fields with `regex` and `regexMessage` parameters
+- Added `EntryMeta` API for reading config metadata from other mods
+- Added item/block icon rendering in expandable list entries
+- Added multiple config files per mod with hub screen navigation
+- Added `useModFolder` option for organizing configs in subfolders
+- Added `@Comment(spacer = true)` for blank spacer rows
+- Added `@Comment` field value as display text fallback
+- Added `IDENTIFIER_ONLY` filter for item/block ID fields
+- Added `ExampleConfig` demo with all features
+- Added `validateFields()` for automatic JSON5 value validation on load
+- Fixed reset button not clearing error state
+- Fixed Done button not re-enabling after reset
+- Fixed color fields accepting invalid formats
+- Fixed string min/max not working correctly
+- Fixed list reset button always being active

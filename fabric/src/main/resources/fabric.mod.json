@@ -19,6 +19,9 @@
 	"icon": "logo.png",
 	"environment": "${side}",
 	"entrypoints": {
+		"main": [
+			"com.jahirtrap.configlib.ConfigLibMod"
+		],
 		"modmenu": [
 			"com.jahirtrap.configlib.AutoModMenu"
 		]

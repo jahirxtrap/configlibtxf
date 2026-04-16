@@ -73,6 +73,8 @@ Rendered as an expandable list with add/remove buttons and per-item editing.
 | `fileChooserType` | `int` | `OPEN_DIALOG` | `JFileChooser.OPEN_DIALOG` or `SAVE_DIALOG` |
 | `fileExtensions` | `String[]` | `{"*"}` | Allowed file extensions for file chooser |
 | `syncServer` | `boolean` | `false` | Sync this field from server to client. See [Screen & Server Sync](Screen-&-Server-Sync) |
+| `regex` | `String` | `""` | Regex pattern for string validation. Field turns red if invalid |
+| `regexMessage` | `String` | `""` | Error message shown when regex fails. Default: "Invalid format" |
 
 ---
 
@@ -112,6 +114,15 @@ public static boolean enableGold = true;
 @Entry(name = "Export Path", selectionMode = 1)
 public static String exportPath = "";
 ```
+
+## Regex Validation
+
+```java
+@Entry(name = "Username", regex = "^[a-zA-Z0-9_]{3,16}$", regexMessage = "Must be 3-16 alphanumeric characters")
+public static String username = "Steve";
+```
+
+The field turns red and the Done button is disabled when the value doesn't match the regex. The error message is shown as a tooltip on hover. If `regexMessage` is omitted, "Invalid format" is shown by default. Regex also applies to `List<String>` fields — invalid items are filtered on load.
 
 ## Custom Comment
 
@@ -153,18 +164,31 @@ Each category becomes a tab in the config screen. The category name can be trans
 
 ### @Comment
 
-Adds a label row in the config screen (no editable field):
+Adds a label row in the config screen (no editable field). The display text is resolved as: translation key > field value > formatted field name.
 
 ```java
+// Displays the field value "Section Title"
 @Comment
-public static String spacer = "Section Title";
+public static String sectionTitle = "Section Title";
 
+// Centered text
 @Comment(centered = true)
 public static String header = "Centered Header";
 
+// With category
 @Comment(category = "combat")
 public static String combatHeader = "Combat Settings";
+
+// Blank spacer row
+@Comment(spacer = true)
+public static String s1;
 ```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `centered` | `boolean` | `false` | Center the text horizontally |
+| `spacer` | `boolean` | `false` | Render as a blank row (no text) |
+| `category` | `String` | `"default"` | Tab category |
 
 ### @Server
 
@@ -207,8 +231,80 @@ public static boolean showHud = true;
 | `modid.config.fieldName.tooltip` | Tooltip on hover |
 | `modid.config.category.categoryid` | Tab name |
 | `modid.config.enum.EnumName.VALUE` | Enum value display |
+| `modid.config.hub.suffix` | Hub button name (multiple configs) |
 
-If a translation key doesn't exist, the display name falls back to the `name` parameter or the field name converted to title case.
+All keys are optional. Fallbacks when a key doesn't exist:
+
+| Key | Fallback |
+|-----|----------|
+| `modid.config.title` | Mod name from mod loader |
+| `modid.config.fieldName` | `@Entry(name="...")` or field name as title case |
+| `modid.config.fieldName.tooltip` | No tooltip shown |
+| `modid.config.category.categoryid` | Screen title (if `"default"`) or categoryid capitalized |
+| `modid.config.enum.EnumName.VALUE` | Enum name formatted (`HARD_MODE` → `"Hard Mode"`) |
+| `modid.config.hub.suffix` | Suffix capitalized (`"client"` → `"Client"`) |
+
+For `@Comment` fields: translation key > field value (`= "text"`) > formatted field name.
+
+---
+
+## Multiple Config Files
+
+Split configs into separate files using the `suffix` parameter:
+
+```java
+TXFConfig.init(MODID, ClientConfig.class, "client");   // → config/mymod-client.json5
+TXFConfig.init(MODID, ServerConfig.class, "server");   // → config/mymod-server.json5
+```
+
+When a mod has multiple config files, a **hub screen** is shown with buttons for each config. Single-config mods go directly to the config screen as usual.
+
+Translation key for hub buttons: `modid.config.hub.suffix` (fallback: capitalized suffix name).
+
+### Mod Folder
+
+Organize configs in a subfolder:
+
+```java
+TXFConfig.init(MODID, Config.class, true);               // → config/mymod/mymod.json5
+TXFConfig.init(MODID, ClientConfig.class, "client", true); // → config/mymod/mymod-client.json5
+```
+
+---
+
+## EntryMeta API
+
+Read config metadata from any mod at runtime:
+
+```java
+// From your own mod (using class reference)
+var meta = TXFConfig.get(ModConfig.class, "maxHealth");
+
+// From another mod (using modid)
+var meta = TXFConfig.get("othermod", "maxHealth");
+
+if (meta != null) {
+    Object current = meta.value();        // current runtime value
+    Object def = meta.defaultValue();     // default value
+    double min = meta.min();              // min constraint
+    boolean valid = meta.validate("10");  // test regex
+}
+```
+
+Returns `@Nullable EntryMeta` with all annotation parameters + current value + default value. Returns `null` if the mod/field doesn't exist.
+
+---
+
+## JSON5 Validation
+
+Invalid values in JSON5 files are automatically corrected on load:
+
+- **int/float/double**: out of min/max range → reset to default
+- **enum**: invalid constant → reset to default
+- **String + regex**: doesn't match → reset to default
+- **String + isColor**: not valid hex format → reset to default
+- **String + idMode**: not a valid identifier (modid:name) → reset to default
+- **List\<String\> + regex**: invalid items are filtered out
 
 ---
 
@@ -226,6 +322,9 @@ public class ModConfig extends TXFConfig {
 
     @Entry(category = GENERAL, name = "Allowed Items", idMode = 0, syncServer = true)
     public static List<String> allowedItems = Lists.newArrayList();
+
+    @Entry(category = GENERAL, name = "Server Name", min = 3, max = 30)
+    public static String serverName = "My Server";
 
     @Entry(category = GENERAL, name = "Mode", syncServer = true)
     public static Mode mode = Mode.NORMAL;
@@ -249,6 +348,8 @@ Generated `mymod.json5`:
   "maxLevel": 10,
   // default: []
   "allowedItems": [],
+  // min: 3, max: 30, default: My Server
+  "serverName": "My Server",
   // values: NORMAL, CREATIVE, ADVENTURE, default: NORMAL
   "mode": "NORMAL",
 
