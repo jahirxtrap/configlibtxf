@@ -91,6 +91,7 @@ publishMods {
         repository = "jahirxtrap/configlibtxf"
         commitish = 'git branch --show-current'.execute().text.trim()
         tagName = rootProject.version
+        displayName = rootProject.version
         additionalFiles.from(project(":forge").tasks.jar.archiveFile)
     }
 }
