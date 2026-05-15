@@ -19,6 +19,10 @@ A powerful & lightweight config library for Minecraft mods
 
 <strong>Full Translation Support:</strong> Every label, tooltip, tab, and enum value can be translated through the standard language files
 
+<strong>Fabric/Quilt dependencies:</strong>
+
+- <a href="https://modrinth.com/mod/modmenu" target="_blank">Mod Menu mod</a> <strong>(Optional)</strong>
+
 <img src="https://cdn.modrinth.com/data/HtQQHY1F/images/3f3582ad22420ceb7c4f9cc13dcff52533fa10bf.png">
 
 ### Dependency (Maven Central)
