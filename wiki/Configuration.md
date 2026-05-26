@@ -50,7 +50,16 @@ Rendered as a cycle button. Supports translation keys: `modid.config.enum.EnumNa
 public static List<String> blockList = Lists.newArrayList();
 ```
 
-Rendered as an expandable list with add/remove buttons and per-item editing.
+Rendered as an expandable list with add/remove buttons and per-item editing. Each item supports the same action widget as a single value — color picker (`isColor`), item/block icon (`idMode`) or file/directory chooser (`selectionMode`). `min`/`max` validate the text length of each element.
+
+Use `minItems`/`maxItems` to bound the element count, or `labels` for a fixed-size list with a name per element:
+
+```java
+@Entry(name = "Theme Colors", isColor = true, width = 7, min = 7, labels = {"Background", "Text", "Accent"})
+public static List<String> themeColors = List.of("#000000", "#FFFFFF", "#FF5555");
+```
+
+With `labels` the list has exactly one element per label (add/remove disabled), each row shows its label instead of `#1, #2, …`, and an `Order: ...` comment is written above the entry in the JSON5 file.
 
 ---
 
@@ -59,14 +68,17 @@ Rendered as an expandable list with add/remove buttons and per-item editing.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `name` | `String` | `""` | Display name. If empty, derived from field name |
-| `min` | `double` | `Double.MIN_NORMAL` | Minimum value (numeric types) or min length (strings) |
-| `max` | `double` | `Double.MAX_VALUE` | Maximum value (numeric types) or max length (strings) |
+| `min` | `double` | `Double.MIN_NORMAL` | Minimum value (numeric) or min text length (string / list element) |
+| `max` | `double` | `Double.MAX_VALUE` | Maximum value (numeric) or max text length (string / list element) |
+| `minItems` | `int` | `-1` | Min number of elements (lists). `-1` = no limit. Ignored when `labels` is set |
+| `maxItems` | `int` | `-1` | Max number of elements (lists). `-1` = no limit. Ignored when `labels` is set |
+| `labels` | `String[]` | `{}` | Fixed labels for list elements: fixes the size, shows a label per row, disables add/remove, and emits an `Order:` comment |
 | `width` | `int` | `400` | Max character length for text fields |
 | `comment` | `String` | `""` | Custom comment in the JSON5 file |
 | `category` | `String` | `"default"` | Tab category for grouping fields |
 | `isSlider` | `boolean` | `false` | Render as slider instead of text field (numeric types) |
 | `precision` | `int` | `100` | Decimal precision for sliders |
-| `isColor` | `boolean` | `false` | Enable color picker (hex string fields) |
+| `isColor` | `boolean` | `false` | Enable color picker (hex string fields and string lists) |
 | `idMode` | `int` | `-1` | Item/block icon: `-1` none, `0` item, `1` block |
 | `itemDisplay` | `String` | `""` | Static item icon by registry id (e.g. `"minecraft:diamond"`) |
 | `selectionMode` | `int` | `-1` | File chooser: `-1` none, `0` file, `1` directory, `2` both |
