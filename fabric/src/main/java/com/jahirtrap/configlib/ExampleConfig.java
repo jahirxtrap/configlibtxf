@@ -40,6 +40,10 @@ public class ExampleConfig extends TXFConfig {
     public static List<String> stringList = List.of("alpha", "beta", "gamma");
     @Entry(category = CATEGORY_2, idMode = 0, comment = "String list with item icons")
     public static List<String> stringListItems = List.of("minecraft:diamond", "minecraft:emerald", "minecraft:gold_ingot");
+    @Entry(category = CATEGORY_2, isColor = true, width = 7, comment = "Color list")
+    public static List<String> colorList = List.of("#FF5555", "#55FF55", "#5555FF");
+    @Entry(category = CATEGORY_2, selectionMode = 0, comment = "File list")
+    public static List<String> fileList = List.of();
 
     public enum Difficulty {EASY, NORMAL, HARD, EXTREME}
 }

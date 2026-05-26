@@ -246,11 +246,30 @@ public abstract class TXFConfig {
                     if (!invalid && e.isColor())
                         invalid = !COLOR_PATTERN.matcher(s.startsWith("#") ? s : "#" + s).matches();
                     if (!invalid && e.idMode() >= 0) invalid = !IDENTIFIER_PATTERN.matcher(s).matches();
-                } else if (type == List.class && !e.regex().isEmpty() && val instanceof List<?> list) {
-                    var filtered = list.stream().filter(item -> item instanceof String s && s.matches(e.regex())).toList();
-                    if (filtered.size() != list.size()) {
-                        field.set(null, new ArrayList<>(filtered));
+                } else if (type == List.class && val instanceof List<?> list) {
+                    int required = e.labels().length;
+                    boolean badCount = required > 0 ? list.size() != required
+                            : (e.minItems() >= 0 && list.size() < e.minItems()) || (e.maxItems() >= 0 && list.size() > e.maxItems());
+                    if (badCount) {
+                        field.set(null, def);
                         continue;
+                    }
+                    if (!e.regex().isEmpty() || e.isColor() || e.idMode() >= 0) {
+                        var filtered = list.stream().filter(item -> {
+                            if (!(item instanceof String s)) return false;
+                            if (s.isEmpty()) return true;
+                            if (!e.regex().isEmpty() && !s.matches(e.regex())) return false;
+                            if (e.isColor() && !COLOR_PATTERN.matcher(s.startsWith("#") ? s : "#" + s).matches())
+                                return false;
+                            return e.idMode() < 0 || IDENTIFIER_PATTERN.matcher(s).matches();
+                        }).toList();
+                        if (filtered.size() != list.size()) {
+                            if (required > 0 || (e.minItems() >= 0 && filtered.size() < e.minItems()))
+                                field.set(null, def);
+                            else
+                                field.set(null, new ArrayList<>(filtered));
+                            continue;
+                        }
                     }
                 }
                 if (invalid) field.set(null, def);
@@ -453,6 +472,18 @@ public abstract class TXFConfig {
                 if (e.min() != Double.MIN_NORMAL) meta.add("min: " + formatNum(e.min(), type));
                 if (e.max() != Double.MAX_VALUE) meta.add("max: " + formatNum(e.max(), type));
             }
+            if (type == String.class || type == List.class) {
+                if (e.min() != Double.MIN_NORMAL) meta.add("min length: " + (int) e.min());
+                if (e.max() != Double.MAX_VALUE) meta.add("max length: " + (int) e.max());
+                if (e.width() != 400) meta.add("max chars: " + e.width());
+            }
+            if (type == List.class) {
+                if (e.labels().length > 0) parts.add("Order: " + String.join(", ", e.labels()));
+                else {
+                    if (e.minItems() >= 0) meta.add("min items: " + e.minItems());
+                    if (e.maxItems() >= 0) meta.add("max items: " + e.maxItems());
+                }
+            }
             if (type.isEnum())
                 meta.add("values: " + String.join(", ", Arrays.stream(type.getEnumConstants()).map(Object::toString).toArray(String[]::new)));
             if (defaults != null && defaults.containsKey(field.getName()))
@@ -510,8 +541,9 @@ public abstract class TXFConfig {
      *       ({@link #isColor()}), item/block id helper
      *       ({@link #idMode()}) or file chooser
      *       ({@link #selectionMode()});</li>
-     *   <li>{@link java.util.List} of {@link String} &rarr; expandable list
-     *       editor.</li>
+     *   <li>{@link List} of {@link String} &rarr; expandable list
+     *       editor; each element offers the same color picker, id helper or
+     *       file chooser as a single {@link String}.</li>
      * </ul>
      */
     @Retention(RetentionPolicy.RUNTIME)
@@ -520,7 +552,7 @@ public abstract class TXFConfig {
         /**
          * Maximum length of the text typed into the widget, in characters.
          * <p>
-         * Applies to {@link String} and {@link java.util.List} fields and
+         * Applies to {@link String} and {@link List} fields and
          * controls the underlying {@code EditBox.setMaxLength}; long values
          * are truncated when the user types past the limit. Defaults to
          * {@code 400}.
@@ -533,7 +565,7 @@ public abstract class TXFConfig {
          * Lower bound for the field's value.
          * <p>
          * Applied to numeric fields directly and to {@link String} /
-         * {@link java.util.List} fields as the minimum length. Defaults to
+         * {@link List} fields as the minimum length. Defaults to
          * {@link Double#MIN_NORMAL}, which the library treats as "unset".
          *
          * @return the lower bound, or {@link Double#MIN_NORMAL} when none
@@ -549,6 +581,51 @@ public abstract class TXFConfig {
          * @return the upper bound, or {@link Double#MAX_VALUE} when none
          */
         double max() default Double.MAX_VALUE;
+
+        /**
+         * Fixed labels for the elements of a {@link List} entry.
+         * <p>
+         * When non-empty, the list has a fixed size equal to the number of
+         * labels: the GUI shows each label in place of the {@code #1, #2, …}
+         * index and disables the add/remove buttons, and a list whose size
+         * differs from the label count is reset to its default on load. The
+         * labels are also emitted as an {@code Order: …} comment above the
+         * entry in the JSON5 file. Takes priority over {@link #minItems()} and
+         * {@link #maxItems()}. Has no effect on non-list fields.
+         *
+         * @return the per-element labels, or an empty array for an unlabeled
+         * variable-length list
+         * @since 2.0.2
+         */
+        String[] labels() default {};
+
+        /**
+         * Minimum number of elements required in a {@link List} entry.
+         * <p>
+         * Default {@code -1} (no minimum). On load, a list with fewer than
+         * {@code minItems} elements is reset to its default; in the GUI the
+         * remove ({@code ✕}) button is disabled once the minimum is reached.
+         * Ignored when {@link #labels()} is set. Has no effect on non-list
+         * fields.
+         *
+         * @return the minimum element count, or {@code -1} for no minimum
+         * @since 2.0.2
+         */
+        int minItems() default -1;
+
+        /**
+         * Maximum number of elements allowed in a {@link List} entry.
+         * <p>
+         * Default {@code -1} (no limit). On load, a list with more than
+         * {@code maxItems} elements is reset to its default; in the GUI the
+         * add ({@code +}) button is disabled once the limit is reached.
+         * Ignored when {@link #labels()} is set. Has no effect on non-list
+         * fields.
+         *
+         * @return the maximum element count, or {@code -1} for no limit
+         * @since 2.0.2
+         */
+        int maxItems() default -1;
 
         /**
          * Override for the entry's display name in the GUI.
@@ -618,7 +695,7 @@ public abstract class TXFConfig {
          * to the field, {@code 1} treats it as a {@code minecraft:block} id
          * and shows the block icon. Defaults to {@code -1}.
          * <p>
-         * On {@link java.util.List} fields with {@code idMode >= 0}, every
+         * On {@link List} fields with {@code idMode >= 0}, every
          * expanded entry also gets the icon helper.
          *
          * @return the id-mode
@@ -643,7 +720,8 @@ public abstract class TXFConfig {
          * <p>
          * The widget validates input as a {@code #RRGGBB} string and
          * opens a {@link javax.swing.JColorChooser} dialog when the swatch
-         * button is clicked. Only meaningful for {@link String} fields.
+         * button is clicked. Applies to {@link String} fields and to each
+         * element of a {@link List} of {@link String}.
          *
          * @return {@code true} to use the color-picker widget
          */
@@ -705,7 +783,7 @@ public abstract class TXFConfig {
          * turns red and the {@code Done} button is disabled). Defaults to
          * an empty string, i.e. no pattern check. For {@link String}
          * fields the regex is applied to the value; for
-         * {@link java.util.List} fields it is applied to each element and
+         * {@link List} fields it is applied to each element and
          * non-matching ones are dropped silently.
          *
          * @return the regex pattern, or an empty string for no validation
