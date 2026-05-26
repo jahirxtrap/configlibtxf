@@ -38,9 +38,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.regex.Pattern;
 
 import static com.jahirtrap.configlib.ConfigLibMod.MODID;
@@ -470,6 +468,50 @@ public class TXFConfigClient extends TXFConfig {
             fillList();
         }
 
+        private AbstractWidget buildActionWidget(Entry e, Supplier<String> getValue, Consumer<String> setValue, String fieldName) {
+            if (e.isColor()) {
+                Button colorButton = Button.builder(Component.literal("⬛"),
+                        button -> new Thread(() -> {
+                            String current = getValue.get();
+                            Color newColor = JColorChooser.showDialog(null, null, Color.decode(current.isEmpty() ? "#FFFFFF" : current));
+                            if (newColor != null) {
+                                setValue.accept("#" + Integer.toHexString(newColor.getRGB()).substring(2));
+                                list.clear();
+                                fillList();
+                            }
+                        }).start()
+                ).bounds(width - 185, 0, 20, 20).build();
+                try {
+                    colorButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(getValue.get()).getRGB())));
+                } catch (Exception ignored) {
+                }
+                return colorButton;
+            } else if (e.idMode() == 0 || e.idMode() == 1) {
+                return new ItemField(font, width - 185, 0, 20, 20, e.idMode());
+            } else if (!e.itemDisplay().isBlank()) {
+                return new ItemField(font, width - 185, 0, 20, 20, e.itemDisplay());
+            } else if (e.selectionMode() > -1) {
+                Button explorerButton = SpriteIconButton.builder(Component.empty(),
+                        button -> new Thread(() -> {
+                            JFileChooser fileChooser = new JFileChooser(getValue.get());
+                            fileChooser.setFileSelectionMode(e.selectionMode());
+                            fileChooser.setDialogType(e.fileChooserType());
+                            if ((e.selectionMode() == JFileChooser.FILES_ONLY || e.selectionMode() == JFileChooser.FILES_AND_DIRECTORIES) && Arrays.stream(e.fileExtensions()).noneMatch("*"::equals))
+                                fileChooser.setFileFilter(new FileNameExtensionFilter(
+                                        Component.translatable(translationPrefix + fieldName + ".fileFilter").getString(), e.fileExtensions()));
+                            if (fileChooser.showDialog(null, null) == JFileChooser.APPROVE_OPTION) {
+                                setValue.accept(fileChooser.getSelectedFile().getAbsolutePath());
+                                list.clear();
+                                fillList();
+                            }
+                        }).start(), true
+                ).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/explorer"), 12, 12).size(20, 20).build();
+                explorerButton.setPosition(width - 185, 0);
+                return explorerButton;
+            }
+            return null;
+        }
+
         public void fillList() {
             for (EntryInfo info : entries) {
                 if (info.modid.equals(modid) && (info.tab == null || info.tab == tabManager.getCurrentTab())) {
@@ -530,45 +572,8 @@ public class TXFConfigClient extends TXFConfig {
                             widget.visible = false;
                             widget.active = false;
                         }
-                        if (e.isColor()) {
-                            Button colorButton = Button.builder(Component.literal("⬛"),
-                                    button -> new Thread(() -> {
-                                        Color newColor = JColorChooser.showDialog(null, null, Color.decode(!Objects.equals(info.tempValue, "") ? info.tempValue : "#FFFFFF"));
-                                        if (newColor != null) {
-                                            info.setValue("#" + Integer.toHexString(newColor.getRGB()).substring(2));
-                                            list.clear();
-                                            fillList();
-                                        }
-                                    }).start()
-                            ).bounds(width - 185, 0, 20, 20).build();
-                            try {
-                                colorButton.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(info.tempValue).getRGB())));
-                            } catch (Exception ignored) {
-                            }
-                            info.actionButton = colorButton;
-                        } else if (e.idMode() == 0 || e.idMode() == 1) {
-                            info.actionButton = new ItemField(font, width - 185, 0, 20, 20, e.idMode());
-                        } else if (!e.itemDisplay().isBlank()) {
-                            info.actionButton = new ItemField(font, width - 185, 0, 20, 20, e.itemDisplay());
-                        } else if (e.selectionMode() > -1) {
-                            Button explorerButton = SpriteIconButton.builder(Component.empty(),
-                                    button -> new Thread(() -> {
-                                        JFileChooser fileChooser = new JFileChooser(info.tempValue);
-                                        fileChooser.setFileSelectionMode(e.selectionMode());
-                                        fileChooser.setDialogType(e.fileChooserType());
-                                        if ((e.selectionMode() == JFileChooser.FILES_ONLY || e.selectionMode() == JFileChooser.FILES_AND_DIRECTORIES) && Arrays.stream(e.fileExtensions()).noneMatch("*"::equals))
-                                            fileChooser.setFileFilter(new FileNameExtensionFilter(
-                                                    Component.translatable(translationPrefix + info.field.getName() + ".fileFilter").getString(), e.fileExtensions()));
-                                        if (fileChooser.showDialog(null, null) == JFileChooser.APPROVE_OPTION) {
-                                            info.setValue(fileChooser.getSelectedFile().getAbsolutePath());
-                                            list.clear();
-                                            fillList();
-                                        }
-                                    }).start(), true
-                            ).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/explorer"), 12, 12).size(20, 20).build();
-                            explorerButton.setPosition(width - 185, 0);
-                            info.actionButton = explorerButton;
-                        }
+                        if (info.field.getType() != List.class)
+                            info.actionButton = buildActionWidget(e, () -> info.tempValue, info::setValue, info.field.getName());
                         List<AbstractWidget> widgets = Lists.newArrayList(widget, resetButton);
                         boolean locked = isSyncLocked(info);
                         if (locked) {
@@ -590,11 +595,33 @@ public class TXFConfigClient extends TXFConfig {
                         // Expanded list entries
                         if (info.field.getType() == List.class && info.listExpanded) {
                             var listValues = new ArrayList<>((List<?>) info.value);
+                            int labelCount = e.labels().length;
+                            boolean countLocked = labelCount > 0;
+                            int minCount = countLocked ? labelCount : Math.max(0, e.minItems());
+                            int maxCount = countLocked ? labelCount : (e.maxItems() >= 0 ? e.maxItems() : Integer.MAX_VALUE);
+                            double minLen = e.min() == Double.MIN_NORMAL ? 0 : e.min();
+                            double maxLen = e.max() == Double.MAX_VALUE ? Double.MAX_VALUE : e.max();
                             for (int idx = 0; idx < listValues.size(); idx++) {
                                 final int index = idx;
                                 EditBox listField = new EditBox(font, width - 185, 0, 150, 20, Component.empty());
                                 listField.setMaxLength(info.width);
                                 listField.setValue(listValues.get(index).toString());
+                                if (e.isColor())
+                                    listField.setFilter(s -> HEXADECIMAL_ONLY.matcher(s.startsWith("#") ? s : "#" + s).matches());
+                                else if (e.idMode() >= 0)
+                                    listField.setFilter(s -> IDENTIFIER_ONLY.matcher(s).matches());
+                                AbstractWidget elementAction = buildActionWidget(e,
+                                        () -> {
+                                            var l = (List<?>) info.value;
+                                            return index < l.size() ? l.get(index).toString() : "";
+                                        },
+                                        v -> {
+                                            var currentList = new ArrayList<>((List<Object>) info.value);
+                                            if (index < currentList.size()) currentList.set(index, v);
+                                            info.value = currentList;
+                                            info.tempValue = info.toTemporaryValue();
+                                        },
+                                        info.field.getName());
                                 listField.setResponder(s -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
                                     if (index < currentList.size()) {
@@ -602,6 +629,15 @@ public class TXFConfigClient extends TXFConfig {
                                         info.value = currentList;
                                         info.tempValue = info.toTemporaryValue();
                                     }
+                                    if (e.isColor() && elementAction != null) {
+                                        try {
+                                            elementAction.setMessage(Component.literal("⬛").setStyle(Style.EMPTY.withColor(Color.decode(s).getRGB())));
+                                        } catch (Exception ignored) {
+                                        }
+                                    }
+                                    info.inLimits = ((List<?>) info.value).stream().allMatch(o -> o.toString().length() >= minLen && o.toString().length() <= maxLen);
+                                    listField.setTextColor(s.length() >= minLen && s.length() <= maxLen ? 0xFFFFFFFF : 0xFFFF7777);
+                                    done.active = entries.stream().allMatch(en -> en.inLimits);
                                 });
                                 Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
@@ -611,19 +647,21 @@ public class TXFConfigClient extends TXFConfig {
                                     list.clear();
                                     fillList();
                                 }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                removeButton.active = !locked && !countLocked && listValues.size() > minCount;
                                 List<AbstractWidget> listWidgets = Lists.newArrayList(listField, removeButton);
-                                if (e.idMode() >= 0) {
-                                    ItemField listItemField = new ItemField(font, width - 185, 0, 20, 20, e.idMode());
+                                if (elementAction != null) {
+                                    if (Util.getPlatform() == Util.OS.OSX) elementAction.active = false;
                                     listField.setWidth(listField.getWidth() - 22);
                                     listField.setX(listField.getX() + 22);
-                                    listWidgets.add(listItemField);
+                                    listWidgets.add(elementAction);
                                 }
                                 if (locked) {
                                     listField.active = false;
                                     listField.setEditable(false);
-                                    removeButton.active = false;
+                                    if (elementAction != null) elementAction.active = false;
                                 }
-                                this.list.addButton(listWidgets, Component.literal("#" + (index + 1)).withStyle(ChatFormatting.GRAY), null);
+                                Component rowLabel = (labelCount > index ? Component.literal(e.labels()[index]) : Component.literal("#" + (index + 1))).withStyle(ChatFormatting.GRAY);
+                                this.list.addButton(listWidgets, rowLabel, null);
                             }
                             // Add button
                             Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
@@ -634,8 +672,8 @@ public class TXFConfigClient extends TXFConfig {
                                 list.clear();
                                 fillList();
                             }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
-                            if (!locked)
-                                this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
+                            addButton.active = !locked && !countLocked && listValues.size() < maxCount;
+                            this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
                         }
                     } else this.list.addButton(List.of(), name, info);
                 }
