@@ -1,0 +1,12 @@
+{
+  "classes": [
+    {
+      "name": "TXFConfig",
+      "order": 1,
+      "paths": {
+        "fabric": "fabric/src/main/java/com/jahirtrap/configlib/TXFConfig.java",
+        "forge": "forge/src/main/java/com/jahirtrap/configlib/TXFConfig.java"
+      }
+    }
+  ]
+}
