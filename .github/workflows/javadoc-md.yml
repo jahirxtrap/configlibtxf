@@ -1,0 +1,63 @@
+name: Generate Javadoc Markdown
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['*']
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read metadata from gradle.properties
+        id: meta
+        run: |
+          title=$(grep '^mod_name=' gradle.properties | cut -d= -f2)
+          mc=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+          mod=$(grep '^version=' gradle.properties | cut -d= -f2 | sed "s/^${mc}-//")
+          {
+            echo "title=$title"
+            echo "mc=$mc"
+            echo "mod=$mod"
+          } >> "$GITHUB_OUTPUT"
+          echo "Title:     $title"
+          echo "Minecraft: $mc"
+          echo "Mod:       $mod"
+
+      - name: Download javadoc-md-tool
+        env:
+          GH_TOKEN: ${{ vars.JAVADOC_MD_TOKEN }}
+        run: |
+          gh release download --repo jahirxtrap/javadoc-md-tool \
+            --pattern 'javadoc-md-tool-*.tgz' -O tool.tgz
+          mkdir tool
+          tar xzf tool.tgz -C tool --strip-components=1
+
+      - name: Generate Markdown
+        run: |
+          node tool/bin/cli.mjs javadoc-md.json \
+            --project . \
+            --out ./javadoc-out \
+            --title "${{ steps.meta.outputs.title }}" \
+            --mc-version "${{ steps.meta.outputs.mc }}" \
+            --mod-version "${{ steps.meta.outputs.mod }}"
+
+      - name: Publish to javadoc-md branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: javadoc-md
+          publish_dir: ./javadoc-out
+          destination_dir: ${{ steps.meta.outputs.mc }}/${{ steps.meta.outputs.mod }}
+          keep_files: true
+          force_orphan: false
+          commit_message: "Javadoc ${{ steps.meta.outputs.mc }}-${{ steps.meta.outputs.mod }}"
