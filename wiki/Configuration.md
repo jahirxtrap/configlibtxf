@@ -50,7 +50,7 @@ Rendered as a cycle button. Supports translation keys: `modid.config.enum.EnumNa
 public static List<String> blockList = Lists.newArrayList();
 ```
 
-Rendered as an expandable list with add/remove buttons and per-item editing. Each item supports the same action widget as a single value — color picker (`isColor`), item/block icon (`idMode`) or file/directory chooser (`selectionMode`). `min`/`max` validate the text length of each element.
+Rendered as an expandable list with add/remove buttons and per-item editing. Each item supports the same action widget as a single value — color picker (`isColor`), item/block icon (`idMode`) or file/directory chooser (`selectionMode`). `min`/`max` validate the text length of each element, and an invalid element turns red with the same error tooltip as a single field.
 
 Use `minItems`/`maxItems` to bound the element count, or `labels` for a fixed-size list with a name per element:
 
@@ -134,7 +134,7 @@ public static String exportPath = "";
 public static String username = "Steve";
 ```
 
-The field turns red and the Done button is disabled when the value doesn't match the regex. The error message is shown as a tooltip on hover. If `regexMessage` is omitted, "Invalid format" is shown by default. Regex also applies to `List<String>` fields — invalid items are filtered on load.
+The field turns red and the Done button is disabled when the value doesn't match the regex. The error message is shown as a tooltip on hover. If `regexMessage` is omitted, "Invalid format" is shown by default. Regex also applies to `List<String>` fields — each element turns red with the error tooltip in the GUI, and invalid items are filtered on load.
 
 ## Custom Comment
 

@@ -155,8 +155,24 @@ public class TXFConfigClient extends TXFConfig {
     }
 
     public static Tooltip getTooltip(EntryInfo info) {
+        return getTooltip(info, info.error);
+    }
+
+    public static Tooltip getTooltip(EntryInfo info, Component error) {
         String key = info.modid + ".config." + info.field.getName() + ".tooltip";
-        return Tooltip.create(info.error != null ? info.error : I18n.exists(key) ? Component.translatable(key) : Component.empty());
+        return Tooltip.create(error != null ? error : I18n.exists(key) ? Component.translatable(key) : Component.empty());
+    }
+
+    private static Component validateString(Entry e, String s, double min, double max) {
+        if (s.length() < min)
+            return Component.literal("§cMinimum length is " + (int) min).withStyle(ChatFormatting.RED);
+        if (s.length() > max)
+            return Component.literal("§cMaximum length is " + (int) max).withStyle(ChatFormatting.RED);
+        if (!s.isEmpty() && !e.regex().isEmpty() && !s.matches(e.regex())) {
+            String msg = e.regexMessage();
+            return Component.literal("§c" + (msg.isEmpty() ? "Invalid format" : msg)).withStyle(ChatFormatting.RED);
+        }
+        return null;
     }
 
     public static String getModName(String modId) {
@@ -174,27 +190,25 @@ public class TXFConfigClient extends TXFConfig {
             return s -> {
                 s = s.trim();
                 Number value = 0;
-                boolean inLimits = false;
+                boolean inLimits;
                 info.error = null;
-                if (!(isNumber && s.isEmpty()) && !s.equals("-") && !s.equals(".")) {
-                    try {
-                        value = f.apply(s);
-                    } catch (NumberFormatException e) {
-                        return false;
+                if (isNumber) {
+                    inLimits = false;
+                    if (!s.isEmpty() && !s.equals("-") && !s.equals(".")) {
+                        try {
+                            value = f.apply(s);
+                        } catch (NumberFormatException ex) {
+                            return false;
+                        }
+                        inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
+                        info.error = inLimits ? null : Component.literal(value.doubleValue() < min ?
+                                                                         "§cMinimum value" + (cast ? " is " + (int) min : " is " + min) :
+                                                                         "§cMaximum value" + (cast ? " is " + (int) max : " is " + max)).withStyle(ChatFormatting.RED);
+                        t.setTooltip(getTooltip(info));
                     }
-                    inLimits = value.doubleValue() >= min && value.doubleValue() <= max;
-                    info.error = inLimits ? null : Component.literal(value.doubleValue() < min ?
-                                                                     "§cMinimum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) min : " is " + min) :
-                                                                     "§cMaximum " + (isNumber ? "value" : "length") + (cast ? " is " + (int) max : " is " + max)).withStyle(ChatFormatting.RED);
-                    t.setTooltip(getTooltip(info));
-                }
-
-                if (inLimits && !s.isEmpty() && !info.field.getAnnotation(Entry.class).regex().isEmpty()) {
-                    inLimits = s.matches(info.field.getAnnotation(Entry.class).regex());
-                    if (!inLimits) {
-                        String msg = info.field.getAnnotation(Entry.class).regexMessage();
-                        info.error = Component.literal("§c" + (msg.isEmpty() ? "Invalid format" : msg)).withStyle(ChatFormatting.RED);
-                    }
+                } else {
+                    info.error = validateString(info.field.getAnnotation(Entry.class), s, min, max);
+                    inLimits = info.error == null;
                     t.setTooltip(getTooltip(info));
                 }
 
@@ -636,8 +650,10 @@ public class TXFConfigClient extends TXFConfig {
                                         } catch (Exception ignored) {
                                         }
                                     }
-                                    info.inLimits = ((List<?>) info.value).stream().allMatch(o -> o.toString().length() >= minLen && o.toString().length() <= maxLen);
-                                    listField.setTextColor(s.length() >= minLen && s.length() <= maxLen ? 0xFFFFFFFF : 0xFFFF7777);
+                                    Component elementError = validateString(e, s, minLen, maxLen);
+                                    listField.setTooltip(getTooltip(info, elementError));
+                                    listField.setTextColor(elementError == null ? 0xFFFFFFFF : 0xFFFF7777);
+                                    info.inLimits = ((List<?>) info.value).stream().allMatch(o -> validateString(e, o.toString(), minLen, maxLen) == null);
                                     done.active = entries.stream().allMatch(en -> en.inLimits);
                                 });
                                 Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {

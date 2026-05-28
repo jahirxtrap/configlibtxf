@@ -483,9 +483,9 @@ public abstract class TXFConfig {
                 if (e.max() != Double.MAX_VALUE) meta.add("max: " + formatNum(e.max(), type));
             }
             if (type == String.class || type == List.class) {
-                if (e.min() != Double.MIN_NORMAL) meta.add("min length: " + (int) e.min());
-                if (e.max() != Double.MAX_VALUE) meta.add("max length: " + (int) e.max());
-                if (e.width() != 400) meta.add("max chars: " + e.width());
+                if (e.min() != Double.MIN_NORMAL) meta.add("min: " + (int) e.min());
+                if (e.max() != Double.MAX_VALUE) meta.add("max: " + (int) e.max());
+                if (e.width() != 400) meta.add("width: " + e.width());
             }
             if (type == List.class) {
                 if (e.labels().length > 0) parts.add("Order: " + String.join(", ", e.labels()));
@@ -793,8 +793,9 @@ public abstract class TXFConfig {
          * turns red and the {@code Done} button is disabled). Defaults to
          * an empty string, i.e. no pattern check. For {@link String}
          * fields the regex is applied to the value; for
-         * {@link List} fields it is applied to each element and
-         * non-matching ones are dropped silently.
+         * {@link List} fields it is applied to each element &mdash;
+         * non-matching elements turn red with an error tooltip in the GUI
+         * and are dropped on load.
          *
          * @return the regex pattern, or an empty string for no validation
          */
