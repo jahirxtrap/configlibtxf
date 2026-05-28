@@ -473,9 +473,9 @@ public abstract class TXFConfig {
                 if (e.max() != Double.MAX_VALUE) meta.add("max: " + formatNum(e.max(), type));
             }
             if (type == String.class || type == List.class) {
-                if (e.min() != Double.MIN_NORMAL) meta.add("min length: " + (int) e.min());
-                if (e.max() != Double.MAX_VALUE) meta.add("max length: " + (int) e.max());
-                if (e.width() != 400) meta.add("max chars: " + e.width());
+                if (e.min() != Double.MIN_NORMAL) meta.add("min: " + (int) e.min());
+                if (e.max() != Double.MAX_VALUE) meta.add("max: " + (int) e.max());
+                if (e.width() != 400) meta.add("width: " + e.width());
             }
             if (type == List.class) {
                 if (e.labels().length > 0) parts.add("Order: " + String.join(", ", e.labels()));

@@ -1,4 +1,2 @@
-- Added per-element action widgets (color picker, file/directory chooser, item/block icon) to `List<String>` entries
-- Added `labels` to `@Entry`: fixed-size lists that show a label per element and emit an `Order:` comment
-- Added `minItems`/`maxItems` to `@Entry` to bound the number of list elements
-- Changed `min`/`max` to also validate the text length of each list element
+- Fixed `List<String>` elements only turning red on invalid input: they now show the same error tooltip (min/max length, regex) as single `String` fields
+- Changed the auto-generated `String`/`List` comment to use `min`/`max`/`width` instead of `min length`/`max length`/`max chars`
