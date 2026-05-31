@@ -8,6 +8,11 @@ import java.util.Map;
 
 public class AutoModMenu implements ModMenuApi {
     @Override
+    public ConfigScreenFactory<?> getModConfigScreenFactory() {
+        return parent -> TXFConfigClient.getScreen(parent, ConfigLibMod.MODID);
+    }
+
+    @Override
     public Map<String, ConfigScreenFactory<?>> getProvidedConfigScreenFactories() {
         System.setProperty("java.awt.headless", "false");
         HashMap<String, ConfigScreenFactory<?>> map = new HashMap<>();
