@@ -33,8 +33,8 @@ public class TXFConfigServer {
         CHANNEL = NetworkRegistry.ChannelBuilder
                 .named(new ResourceLocation("configlibtxf", "config_sync"))
                 .networkProtocolVersion(() -> PROTOCOL_VERSION)
-                .clientAcceptedVersions(PROTOCOL_VERSION::equals)
-                .serverAcceptedVersions(PROTOCOL_VERSION::equals)
+                .clientAcceptedVersions(NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION))
+                .serverAcceptedVersions(NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION))
                 .simpleChannel();
         CHANNEL.registerMessage(0, ConfigSyncMessage.class,
                 ConfigSyncMessage::encode,
@@ -64,6 +64,7 @@ public class TXFConfigServer {
     }
 
     public static void sendToPlayer(ServerPlayer player) {
+        if (!CHANNEL.isRemotePresent(player.connection.connection)) return;
         for (var entry : TXFConfig.configClass.entrySet()) {
             String modid = entry.getKey();
             if (!hasSyncFields(modid)) continue;

@@ -47,6 +47,7 @@ public class TXFConfigServer {
     }
 
     public static void sendToPlayer(ServerPlayer player) {
+        if (!ServerPlayNetworking.canSend(player, SYNC_ID)) return;
         for (var entry : TXFConfig.configClass.entrySet()) {
             String modid = entry.getKey();
             if (!hasSyncFields(modid)) continue;
