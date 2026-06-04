@@ -1,0 +1,17 @@
+{
+  "title": "ConfigLib TXF",
+  "mcVersion": "1.20.1",
+  "modVersion": "2.0.4",
+  "generatedAt": "2026-06-04T17:55:00.127Z",
+  "classes": [
+    {
+      "name": "TXFConfig",
+      "order": 1,
+      "scope": "per-loader",
+      "loaders": [
+        "fabric",
+        "forge"
+      ]
+    }
+  ]
+}
