@@ -1,2 +1,3 @@
-- Fixed `List<String>` elements only turning red on invalid input: they now show the same error tooltip (min/max length, regex) as single `String` fields
-- Changed the auto-generated `String`/`List` comment to use `min`/`max`/`width` instead of `min length`/`max length`/`max chars`
+- Fixed clients being unable to join servers (or vanilla servers) that don't have the library installed: the config sync channel is now optional on both sides
+- Fixed the library's own config screen not opening from Mod Menu
+- Fixed-size lists now hide the add button and replace the remove button with a per-element reset button

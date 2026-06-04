@@ -46,7 +46,7 @@ public class TXFConfigServer {
     }
 
     private static void onRegisterPayload(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(MODID);
+        PayloadRegistrar registrar = event.registrar(MODID).optional();
         registrar.playToClient(ConfigSyncPayload.TYPE, ConfigSyncPayload.CODEC, ConfigSyncPayload::handle);
     }
 
@@ -69,6 +69,7 @@ public class TXFConfigServer {
     }
 
     public static void sendToPlayer(ServerPlayer player) {
+        if (!player.connection.hasChannel(ConfigSyncPayload.TYPE)) return;
         for (var entry : TXFConfig.configClass.entrySet()) {
             String modid = entry.getKey();
             if (!hasSyncFields(modid)) continue;
