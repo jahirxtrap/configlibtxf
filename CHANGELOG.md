@@ -1,3 +1,1 @@
-- Fixed clients being unable to join servers (or vanilla servers) that don't have the library installed: the config sync channel is now optional on both sides
-- Fixed the library's own config screen not opening from Mod Menu
-- Fixed-size lists now hide the add button and replace the remove button with a per-element reset button
+- Update to 26.2
