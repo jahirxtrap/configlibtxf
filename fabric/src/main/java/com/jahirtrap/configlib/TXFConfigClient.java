@@ -12,16 +12,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.gui.components.tabs.GridLayoutTab;
-import net.minecraft.client.gui.components.tabs.Tab;
-import net.minecraft.client.gui.components.tabs.TabManager;
-import net.minecraft.client.gui.components.tabs.TabNavigationBar;
+import net.minecraft.client.gui.components.tabs.*;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -128,7 +126,7 @@ public class TXFConfigClient extends TXFConfig {
                 List<?> values = Arrays.asList(field.getType().getEnumConstants());
                 Function<Object, Component> func = value -> {
                     String translationKey = modid + ".config.enum." + info.dataType.getSimpleName() + "." + info.toTemporaryValue();
-                    return I18n.exists(translationKey) ? Component.translatable(translationKey) : Component.literal(info.toFormattedName());
+                    return Language.getInstance().has(translationKey) ? Component.translatable(translationKey) : Component.literal(info.toFormattedName());
                 };
                 info.function = new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(button -> {
                     int index = values.indexOf(info.value) + 1;
@@ -160,7 +158,7 @@ public class TXFConfigClient extends TXFConfig {
 
     public static Tooltip getTooltip(EntryInfo info, Component error) {
         String key = info.modid + ".config." + info.field.getName() + ".tooltip";
-        return Tooltip.create(error != null ? error : I18n.exists(key) ? Component.translatable(key) : Component.empty());
+        return Tooltip.create(error != null ? error : Language.getInstance().has(key) ? Component.translatable(key) : Component.empty());
     }
 
     private static Component validateString(Entry e, String s, double min, double max) {
@@ -250,7 +248,7 @@ public class TXFConfigClient extends TXFConfig {
         private ConfigListWidget list;
 
         protected HubScreen(Screen parent, String modid, List<String> keys) {
-            super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
+            super(Language.getInstance().has(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
             this.parent = parent;
             this.modid = modid;
             this.keys = keys;
@@ -259,23 +257,23 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void init() {
             super.init();
-            var tabNavigation = TabNavigationBar.builder(new TabManager(a -> {
+            var tabNavigation = MenuTabBar.builder(new TabManager(a -> {
                     }, a -> {
                     }), this.width)
                     .addTabs(new GridLayoutTab(this.title)).build();
             tabNavigation.selectTab(0, false);
-            tabNavigation.arrangeElements();
+            tabNavigation.arrangeElements(this.width);
             this.addRenderableWidget(tabNavigation);
 
             this.list = new ConfigListWidget(this.minecraft, this.width, this.height - 66, 33, 25);
             for (String key : keys) {
                 String suffix = key.contains(":") ? key.substring(key.indexOf(':') + 1) : "default";
                 String translationKey = modid + ".config.hub." + suffix;
-                String displayName = I18n.exists(translationKey) ? I18n.get(translationKey) :
+                String displayName = Language.getInstance().has(translationKey) ? I18n.get(translationKey) :
                         suffix.substring(0, 1).toUpperCase() + suffix.substring(1);
                 String fileName = (suffix.equals("default") ? modid : modid + "-" + suffix) + ".json5";
                 Button configButton = Button.builder(Component.literal(displayName + " ").append(Component.literal("(" + fileName + ")").withStyle(ChatFormatting.GRAY)), b ->
-                        Objects.requireNonNull(minecraft).setScreen(new ConfigScreen(this, key))
+                        Objects.requireNonNull(minecraft).gui.setScreen(new ConfigScreen(this, key))
                 ).bounds(this.width / 2 - 150, 0, 300, 20).build();
                 Button editorButton = SpriteIconButton.builder(Component.empty(), b -> {
                     Path p = configPaths.get(key);
@@ -298,14 +296,14 @@ public class TXFConfigClient extends TXFConfig {
 
         @Override
         public void onClose() {
-            Objects.requireNonNull(minecraft).setScreen(parent);
+            Objects.requireNonNull(minecraft).gui.setScreen(parent);
         }
     }
 
     @Environment(EnvType.CLIENT)
     public static class ConfigScreen extends Screen {
         protected ConfigScreen(Screen parent, String modid) {
-            super(I18n.exists(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
+            super(Language.getInstance().has(modid + ".config.title") ? Component.translatable(modid + ".config.title") : Component.literal(getModName(modid)));
             this.parent = parent;
             this.modid = modid;
             this.translationPrefix = modid + ".config.";
@@ -315,7 +313,7 @@ public class TXFConfigClient extends TXFConfig {
                 if (e.modid.equals(modid)) {
                     String tabId = e.field.isAnnotationPresent(Entry.class) ? e.field.getAnnotation(Entry.class).category() : e.field.getAnnotation(Comment.class).category();
                     String name = translationPrefix + "category." + tabId;
-                    if (!I18n.exists(name)) {
+                    if (!Language.getInstance().has(name)) {
                         if (tabId.equals("default")) name = title.getString();
                         else name = tabId.substring(0, 1).toUpperCase() + tabId.substring(1).toLowerCase();
                     }
@@ -326,9 +324,9 @@ public class TXFConfigClient extends TXFConfig {
                     } else e.tab = tabs.get(name);
                 }
             }
-            tabNavigation = TabNavigationBar.builder(tabManager, this.width).addTabs(tabs.values().toArray(new Tab[0])).build();
+            tabNavigation = MenuTabBar.builder(tabManager, this.width).addTabs(tabs.values().toArray(new Tab[0])).build();
             tabNavigation.selectTab(0, false);
-            tabNavigation.arrangeElements();
+            tabNavigation.arrangeElements(this.width);
             prevTab = tabManager.getCurrentTab();
         }
 
@@ -345,7 +343,7 @@ public class TXFConfigClient extends TXFConfig {
         public double scrollProgress = 0d;
 
         private boolean isOnMultiplayerServer() {
-            return minecraft != null && minecraft.getConnection() != null && !minecraft.isSingleplayer();
+            return minecraft != null && minecraft.getConnection() != null && !minecraft.isLocalServer();
         }
 
         private boolean isSyncLocked(EntryInfo info) {
@@ -425,7 +423,7 @@ public class TXFConfigClient extends TXFConfig {
             loadValues();
             cleanup();
             Screen target = (parent instanceof HubScreen hub) ? hub.parent : parent;
-            Objects.requireNonNull(minecraft).setScreen(target);
+            Objects.requireNonNull(minecraft).gui.setScreen(target);
         }
 
         private void cleanup() {
@@ -444,14 +442,13 @@ public class TXFConfigClient extends TXFConfig {
         @Override
         public void init() {
             super.init();
-            tabNavigation.updateWidth(this.width);
-            tabNavigation.arrangeElements();
+            tabNavigation.arrangeElements(this.width);
             if (!tabs.isEmpty()) this.addRenderableWidget(tabNavigation);
 
             boolean hasHub = parent instanceof HubScreen;
             if (hasHub) {
                 this.addRenderableWidget(Button.builder(CommonComponents.GUI_BACK, button ->
-                        Objects.requireNonNull(minecraft).setScreen(parent)
+                        Objects.requireNonNull(minecraft).gui.setScreen(parent)
                 ).bounds(this.width / 2 - 156, this.height - 26, 100, 20).build());
                 this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).bounds(this.width / 2 - 52, this.height - 26, 100, 20).build());
             } else {
@@ -470,7 +467,7 @@ public class TXFConfigClient extends TXFConfig {
                 write(modid);
                 if (syncActive) TXFConfigServer.reapply(modid);
                 cleanup();
-                Objects.requireNonNull(minecraft).setScreen(parent);
+                Objects.requireNonNull(minecraft).gui.setScreen(parent);
             }).bounds(hasHub ? this.width / 2 + 52 : this.width / 2 + 4, this.height - 26, hasHub ? 100 : 150, 20).build());
             Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
                 Path p = configPaths.get(modid);
@@ -535,7 +532,7 @@ public class TXFConfigClient extends TXFConfig {
                         continue;
                     }
                     Component name = Objects.requireNonNullElseGet(info.name, () -> Component.translatable(translationPrefix + info.field.getName()));
-                    if (info.name == null && !I18n.exists(translationPrefix + info.field.getName())) {
+                    if (info.name == null && !Language.getInstance().has(translationPrefix + info.field.getName())) {
                         if (info.field.isAnnotationPresent(Comment.class)) {
                             try {
                                 Object val = info.field.get(null);

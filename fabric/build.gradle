@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'idea'
-    id 'net.fabricmc.fabric-loom' version '1.15-SNAPSHOT'
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
     id 'me.modmuss50.mod-publish-plugin' version '0.6.3'
 }
 
@@ -86,7 +86,7 @@ publishMods {
         commitish = 'git branch --show-current'.execute().text.trim()
         tagName = rootProject.version
         displayName = rootProject.version
-        additionalFiles.from(project(":forge").tasks.jar.archiveFile)
+        //additionalFiles.from(project(":forge").tasks.jar.archiveFile)
         additionalFiles.from(project(":neoforge").tasks.jar.archiveFile)
     }
 }
