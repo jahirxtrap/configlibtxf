@@ -639,12 +639,17 @@ public class TXFConfigClient extends TXFConfig {
                                             info.tempValue = info.toTemporaryValue();
                                         },
                                         info.field.getName());
+                                final AbstractWidget[] itemReset = new AbstractWidget[1];
                                 listField.setResponder(s -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
                                     if (index < currentList.size()) {
                                         currentList.set(index, s);
                                         info.value = currentList;
                                         info.tempValue = info.toTemporaryValue();
+                                    }
+                                    if (itemReset[0] != null) {
+                                        var defList = (List<?>) info.defaultValue;
+                                        itemReset[0].active = !locked && index < defList.size() && !Objects.equals(s, defList.get(index).toString());
                                     }
                                     if (e.isColor() && elementAction != null) {
                                         try {
@@ -658,16 +663,37 @@ public class TXFConfigClient extends TXFConfig {
                                     info.inLimits = ((List<?>) info.value).stream().allMatch(o -> validateString(e, o.toString(), minLen, maxLen) == null);
                                     done.active = entries.stream().allMatch(en -> en.inLimits);
                                 });
-                                Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
-                                    var currentList = new ArrayList<>((List<Object>) info.value);
-                                    if (index < currentList.size()) currentList.remove(index);
-                                    info.value = currentList;
-                                    info.tempValue = info.toTemporaryValue();
-                                    list.clear();
-                                    fillList();
-                                }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
-                                removeButton.active = !locked && !countLocked && listValues.size() > minCount;
-                                List<AbstractWidget> listWidgets = Lists.newArrayList(listField, removeButton);
+                                AbstractWidget rowActionButton;
+                                if (countLocked) {
+                                    Button resetElement = TextAndImageButton.builder(Component.empty(), new ResourceLocation(MODID, "textures/gui/sprites/icon/reset.png"), (button -> {
+                                        var currentList = new ArrayList<>((List<Object>) info.value);
+                                        var defaultList = (List<?>) info.defaultValue;
+                                        if (index < currentList.size() && index < defaultList.size())
+                                            currentList.set(index, defaultList.get(index));
+                                        info.value = currentList;
+                                        info.tempValue = info.toTemporaryValue();
+                                        list.clear();
+                                        fillList();
+                                    })).textureSize(12, 12).usedTextureSize(12, 12).offset(0, 4).build();
+                                    resetElement.setWidth(20);
+                                    resetElement.setPosition(width - 205 + 150 + 25, 0);
+                                    resetElement.active = !locked && index < ((List<?>) info.defaultValue).size()
+                                            && !Objects.equals(listValues.get(index).toString(), ((List<?>) info.defaultValue).get(index).toString());
+                                    itemReset[0] = resetElement;
+                                    rowActionButton = resetElement;
+                                } else {
+                                    Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
+                                        var currentList = new ArrayList<>((List<Object>) info.value);
+                                        if (index < currentList.size()) currentList.remove(index);
+                                        info.value = currentList;
+                                        info.tempValue = info.toTemporaryValue();
+                                        list.clear();
+                                        fillList();
+                                    }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                    removeButton.active = !locked && listValues.size() > minCount;
+                                    rowActionButton = removeButton;
+                                }
+                                List<AbstractWidget> listWidgets = Lists.newArrayList(listField, rowActionButton);
                                 if (elementAction != null) {
                                     if (ON_OSX) elementAction.active = false;
                                     listField.setWidth(listField.getWidth() - 22);
@@ -682,16 +708,18 @@ public class TXFConfigClient extends TXFConfig {
                                 Component rowLabel = (labelCount > index ? Component.literal(e.labels()[index]) : Component.literal("#" + (index + 1))).withStyle(ChatFormatting.GRAY);
                                 this.list.addButton(listWidgets, rowLabel, null);
                             }
-                            Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
-                                var currentList = new ArrayList<>((List<Object>) info.value);
-                                currentList.add("");
-                                info.value = currentList;
-                                info.tempValue = info.toTemporaryValue();
-                                list.clear();
-                                fillList();
-                            }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
-                            addButton.active = !locked && !countLocked && listValues.size() < maxCount;
-                            this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
+                            if (!countLocked) {
+                                Button addButton = Button.builder(Component.literal("+").withStyle(ChatFormatting.GREEN), button -> {
+                                    var currentList = new ArrayList<>((List<Object>) info.value);
+                                    currentList.add("");
+                                    info.value = currentList;
+                                    info.tempValue = info.toTemporaryValue();
+                                    list.clear();
+                                    fillList();
+                                }).bounds(width - 205 + 150 + 25, 0, 20, 20).build();
+                                addButton.active = !locked && listValues.size() < maxCount;
+                                this.list.addButton(Lists.newArrayList(addButton), Component.literal(""), null);
+                            }
                         }
                     } else this.list.addButton(List.of(), name, info);
                 }

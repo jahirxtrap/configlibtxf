@@ -639,12 +639,17 @@ public class TXFConfigClient extends TXFConfig {
                                             info.tempValue = info.toTemporaryValue();
                                         },
                                         info.field.getName());
+                                final AbstractWidget[] itemReset = new AbstractWidget[1];
                                 listField.setResponder(s -> {
                                     var currentList = new ArrayList<>((List<Object>) info.value);
                                     if (index < currentList.size()) {
                                         currentList.set(index, s);
                                         info.value = currentList;
                                         info.tempValue = info.toTemporaryValue();
+                                    }
+                                    if (itemReset[0] != null) {
+                                        var defList = (List<?>) info.defaultValue;
+                                        itemReset[0].active = !locked && index < defList.size() && !Objects.equals(s, defList.get(index).toString());
                                     }
                                     if (e.isColor() && elementAction != null) {
                                         try {
@@ -672,7 +677,9 @@ public class TXFConfigClient extends TXFConfig {
                                     })).textureSize(12, 12).usedTextureSize(12, 12).offset(0, 4).build();
                                     resetElement.setWidth(20);
                                     resetElement.setPosition(width - 205 + 150 + 25, 0);
-                                    resetElement.active = !locked;
+                                    resetElement.active = !locked && index < ((List<?>) info.defaultValue).size()
+                                            && !Objects.equals(listValues.get(index).toString(), ((List<?>) info.defaultValue).get(index).toString());
+                                    itemReset[0] = resetElement;
                                     rowActionButton = resetElement;
                                 } else {
                                     Button removeButton = Button.builder(Component.literal("✕").withStyle(ChatFormatting.RED), button -> {
