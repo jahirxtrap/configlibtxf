@@ -1,6 +1,7 @@
 package com.jahirtrap.configlib;
 
 import com.google.common.collect.Lists;
+import com.mojang.blaze3d.Blaze3D;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -277,7 +278,7 @@ public class TXFConfigClient extends TXFConfig {
                 ).bounds(this.width / 2 - 150, 0, 300, 20).build();
                 Button editorButton = SpriteIconButton.builder(Component.empty(), b -> {
                     Path p = configPaths.get(key);
-                    if (p != null) Util.getPlatform().openFile(p.toFile());
+                    if (p != null) Blaze3D.openPath(p);
                 }, true).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build();
                 editorButton.setPosition(this.width / 2 - 175, 0);
                 list.addButton(Lists.newArrayList(configButton, editorButton), Component.empty(), null);
@@ -471,7 +472,7 @@ public class TXFConfigClient extends TXFConfig {
             }).bounds(hasHub ? this.width / 2 + 52 : this.width / 2 + 4, this.height - 26, hasHub ? 100 : 150, 20).build());
             Button editorButton = this.addRenderableWidget(SpriteIconButton.builder(Component.empty(), button -> {
                 Path p = configPaths.get(modid);
-                if (p != null) Util.getPlatform().openFile(p.toFile());
+                if (p != null) Blaze3D.openPath(p);
             }, true).sprite(Identifier.fromNamespaceAndPath(MODID, "icon/editor"), 12, 12).size(20, 20).build());
             editorButton.setPosition(this.width / 2 - 179, this.height - 26);
 
